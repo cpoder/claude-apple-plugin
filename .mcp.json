@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "apple": {
+      "command": "bash",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/apple-mcp"],
+      "env": {
+        "APPLE_MCP_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "APPLE_MCP_DATA_DIR": "${CLAUDE_PLUGIN_DATA}"
+      }
+    }
+  }
+}

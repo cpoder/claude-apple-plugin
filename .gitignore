@@ -1,0 +1,18 @@
+# Rust build output
+server/target/
+# local credentials — never commit
+config.json
+*.p8
+*.pem
+# Python sidecar
+sidecar/**/.venv/
+sidecar/**/__pycache__/
+*.pyc
+# editors
+.DS_Store
+.idea/
+.vscode/
+# Claude Code local settings
+.claude/settings.local.json
+# build/launcher artefacts
+*.tmp

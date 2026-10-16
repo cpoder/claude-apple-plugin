@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Launcher for the apple-mcp Rust MCP server.
+#
+#   scripts/apple-mcp            run the server over stdio (what Claude Code does)
+#   scripts/apple-mcp build      (re)build the server binary
+#   scripts/apple-mcp check      print which Apple services are configured
+#   scripts/apple-mcp doctor     verify configured credentials with read-only API calls
+#   scripts/apple-mcp setup      automated credential setup (setup auto --json for Claude, setup wizard for humans)
+#   scripts/apple-mcp template   print a config.json template
+#
+# The binary is built with cargo into $CLAUDE_PLUGIN_DATA (or ~/.local/share/apple-mcp)
+# so that plugin updates never lose the build, and rebuilt when the sources change.
+set -euo pipefail
+
+ROOT="${APPLE_MCP_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+DATA="${APPLE_MCP_DATA_DIR:-${CLAUDE_PLUGIN_DATA:-}}"
+# Guard against an unsubstituted ${...} placeholder or an empty value.
+case "$DATA" in ""|*'${'*) DATA="${XDG_DATA_HOME:-$HOME/.local/share}/apple-mcp" ;; esac
+case "$ROOT" in *'${'*) ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" ;; esac
+SERVER_DIR="$ROOT/server"
+BIN_DIR="$DATA/bin"
+BIN="$BIN_DIR/apple-mcp"
+STAMP_FILE="$BIN_DIR/apple-mcp.stamp"
+LOCK="$DATA/build.lock"
+
+log() { printf 'apple-mcp: %s\n' "$*" >&2; }
+
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi
+}
+
+source_stamp() {
+  # Hash of everything that influences the build.
+  { cat "$SERVER_DIR/Cargo.toml" "$SERVER_DIR/Cargo.lock" 2>/dev/null; find "$SERVER_DIR/src" -type f -name '*.rs' | LC_ALL=C sort | xargs cat; } | sha256 | cut -c1-16
+}
+
+build() {
+  if ! command -v cargo >/dev/null 2>&1; then
+    log "cargo not found. Install Rust (https://rustup.rs) then run: $0 build"
+    return 1
+  fi
+  mkdir -p "$BIN_DIR"
+  log "building the server with cargo (first build takes a few minutes)..."
+  CARGO_TARGET_DIR="$DATA/target" cargo build --release --manifest-path "$SERVER_DIR/Cargo.toml" >&2
+  cp "$DATA/target/release/apple-mcp" "$BIN.tmp" && mv "$BIN.tmp" "$BIN"
+  source_stamp > "$STAMP_FILE"
+  log "built $BIN"
+}
+
+# Reuse a binary built manually (README: scripts/apple-mcp build) in the default location when
+# Claude Code launches us with its own plugin data directory.
+FALLBACK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/apple-mcp/bin"
+adopt_fallback() {
+  [ "$FALLBACK_DIR" = "$BIN_DIR" ] && return 1
+  [ -x "$FALLBACK_DIR/apple-mcp" ] || return 1
+  [ "$(cat "$FALLBACK_DIR/apple-mcp.stamp" 2>/dev/null || true)" = "$(source_stamp)" ] || return 1
+  mkdir -p "$BIN_DIR"
+  cp "$FALLBACK_DIR/apple-mcp" "$BIN.tmp" && mv "$BIN.tmp" "$BIN" && cp "$FALLBACK_DIR/apple-mcp.stamp" "$STAMP_FILE"
+  log "reusing the binary built in $FALLBACK_DIR"
+}
+
+needs_build() {
+  local stamp
+  stamp="$(source_stamp)"
+  if [ -x "$BIN" ] && [ "$(cat "$STAMP_FILE" 2>/dev/null || true)" = "$stamp" ]; then
+    return 1
+  fi
+  adopt_fallback && return 1
+  return 0
+}
+
+case "${1:-}" in
+  build|--build)
+    build
+    exit 0
+    ;;
+  check|--check|doctor|--doctor|setup|--setup|template|--template|--version|-V|--help|-h)
+    if needs_build; then build; fi
+    exec "$BIN" "$@"
+    ;;
+esac
+
+if needs_build; then
+  if [ -t 0 ]; then
+    # Interactive terminal: build in the foreground.
+    build
+  else
+    # Launched by Claude Code: build in the background so the MCP startup timeout is not hit,
+    # and fail this attempt with a clear message. Reconnect with /mcp once the build is done.
+    mkdir -p "$DATA"
+    if mkdir "$LOCK" 2>/dev/null; then
+      ( trap 'rmdir "$LOCK"' EXIT; build >> "$DATA/build.log" 2>&1 ) &
+      disown || true
+      log "server binary missing or outdated; building in the background (log: $DATA/build.log). In a few minutes run /mcp and reconnect 'apple' (or restart Claude Code). To build in the foreground instead: APPLE_MCP_DATA_DIR=\"$DATA\" bash \"$0\" build"
+    else
+      log "a build is already running (log: $DATA/build.log); retry in a few minutes."
+    fi
+    exit 1
+  fi
+fi
+
+exec "$BIN" "$@"

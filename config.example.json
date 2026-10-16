@@ -1,0 +1,62 @@
+{
+  "team_id": "ABCDE12345",
+
+  "app_store_connect": {
+    "_where": "App Store Connect > Users and Access > Integrations > App Store Connect API > Team Keys (or Individual Keys: then omit issuer_id)",
+    "key_id": "XXXXXXXXXX",
+    "issuer_id": "69a6de7e-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "private_key_path": "~/.config/apple-mcp/AuthKey_XXXXXXXXXX.p8",
+    "vendor_number": "optional, for sales/finance reports (App Store Connect > Payments and Financial Reports)"
+  },
+  "app_store_server": {
+    "_where": "App Store Connect > Users and Access > Integrations > In-App Purchase keys",
+    "key_id": "", "issuer_id": "", "bundle_id": "com.example.app",
+    "private_key_path": "~/.config/apple-mcp/SubscriptionKey_XXXX.p8",
+    "environment": "production"
+  },
+  "music": {
+    "_where": "developer.apple.com > Certificates, Identifiers & Profiles > Keys > key with 'Media Services (MusicKit)' enabled",
+    "key_id": "", "team_id": "", "private_key_path": "",
+    "user_token": "optional Music User Token for /v1/me/* (library, recommendations)",
+    "storefront": "fr"
+  },
+  "weatherkit": {
+    "_where": "Keys > key with WeatherKit enabled; Identifiers > Services IDs > service ID with WeatherKit",
+    "key_id": "", "service_id": "com.example.weatherkit-client", "team_id": "", "private_key_path": ""
+  },
+  "maps": {
+    "_where": "Keys > key with Maps enabled (Maps IDs are for MapKit JS; the Server API uses the key directly)",
+    "key_id": "", "team_id": "", "private_key_path": ""
+  },
+  "cloudkit": {
+    "_where": "CloudKit Console > container > Settings > Tokens & Keys > Server-to-Server Keys (upload the public key of an EC P-256 key: openssl ecparam -name prime256v1 -genkey -noout -out eckey.pem)",
+    "container": "iCloud.com.example.app", "key_id": "", "private_key_path": "~/.config/apple-mcp/eckey.pem",
+    "environment": "development", "database": "public"
+  },
+  "apns": {
+    "_where": "Keys > key with 'Apple Push Notifications service (APNs)' enabled",
+    "key_id": "", "team_id": "", "private_key_path": "", "topic": "com.example.app", "environment": "production"
+  },
+  "sign_in_with_apple": {
+    "_where": "Keys > key with 'Sign in with Apple' enabled; client_id = Services ID (web) or bundle ID (native)",
+    "client_id": "com.example.web", "team_id": "", "key_id": "", "private_key_path": ""
+  },
+  "business_manager": {
+    "_where": "Apple Business Manager > Preferences > API > Add (download the .pem key); scope business.api or school.api",
+    "client_id": "BUSINESSAPI.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "key_id": "", "private_key_path": "", "scope": "business.api"
+  },
+  "search_ads": {
+    "_where": "Apple Search Ads > Account Settings > API > Create API Client (upload your public key); team_id is the one shown on that page",
+    "client_id": "SEARCHADS.xxxxxxxx", "team_id": "SEARCHADS.xxxxxxxx", "key_id": "", "private_key_path": "", "org_id": 123456
+  },
+  "news": {
+    "_where": "News Publisher > channel > API keys (channel ID, key ID, key secret)",
+    "channel_id": "", "key_id": "", "key_secret": ""
+  },
+  "icloud": {
+    "_where": "account.apple.com > Sign-In and Security > App-Specific Passwords (needs 2FA). apple_id is the iCloud email.",
+    "apple_id": "you@icloud.com", "app_specific_password": "xxxx-xxxx-xxxx-xxxx",
+    "mail_from": "optional sender address (must be an iCloud address or alias), defaults to apple_id",
+    "mail_from_name": "optional display name"
+  }
+}

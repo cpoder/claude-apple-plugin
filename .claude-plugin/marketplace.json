@@ -1,0 +1,20 @@
+{
+  "name": "cpo-plugins",
+  "owner": {
+    "name": "Cyril Poder"
+  },
+  "metadata": {
+    "description": "Personal Claude Code plugins"
+  },
+  "plugins": [
+    {
+      "name": "apple",
+      "source": "./",
+      "description": "Apple online services (App Store Connect, App Store Server, Apple Music, WeatherKit, Maps, CloudKit, APNs, Sign in with Apple, Business Manager, Search Ads, News, iCloud) as MCP tools — Rust server.",
+      "version": "0.1.0",
+      "author": { "name": "Cyril Poder" },
+      "category": "productivity",
+      "keywords": ["apple", "app-store-connect", "icloud", "mcp"]
+    }
+  ]
+}
