@@ -81,7 +81,7 @@ jobs:
           "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Smoke test
         if: runner.os != 'Windows'
-        run: "server/target/${{ matrix.target }}/release/apple-mcp" --version
+        run: ./server/target/${{ matrix.target }}/release/apple-mcp --version
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
