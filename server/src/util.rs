@@ -6,11 +6,10 @@ use crate::error::ToolError;
 
 /// Push `(key, value)` when `value` is Some.
 pub fn opt(q: &mut Vec<(String, String)>, key: &str, value: &Option<String>) {
-    if let Some(v) = value {
-        if !v.trim().is_empty() {
+    if let Some(v) = value
+        && !v.trim().is_empty() {
             q.push((key.to_string(), v.trim().to_string()));
         }
-    }
 }
 
 pub fn opt_num<T: ToString>(q: &mut Vec<(String, String)>, key: &str, value: &Option<T>) {

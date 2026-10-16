@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Launcher for the apple-mcp Rust MCP server.
 #
-#   scripts/apple-mcp            run the server over stdio (what Claude Code does)
-#   scripts/apple-mcp build      (re)build the server binary
-#   scripts/apple-mcp check      print which Apple services are configured
-#   scripts/apple-mcp doctor     verify configured credentials with read-only API calls
-#   scripts/apple-mcp setup      automated credential setup (setup auto --json for Claude, setup wizard for humans)
-#   scripts/apple-mcp template   print a config.json template
+#   scripts/apple-mcp              run the server over stdio (what Claude Code does)
+#   scripts/apple-mcp download     fetch the prebuilt binary for this platform from GitHub Releases
+#   scripts/apple-mcp build        build from source with cargo, and keep using source builds
+#   scripts/apple-mcp check|doctor|setup|icloud|template|--version   pass-through to the binary
 #
-# The binary is built with cargo into $CLAUDE_PLUGIN_DATA (or ~/.local/share/apple-mcp)
-# so that plugin updates never lose the build, and rebuilt when the sources change.
+# Binary resolution (APPLE_MCP_BUILD=auto, the default):
+#   1. a valid binary in the data dir (release matching the plugin version, or a source build
+#      matching the current sources)
+#   2. the same in ~/.local/share/apple-mcp (manual downloads/builds), copied over
+#   3. the release asset for this platform (SHA-256 verified) — no Rust toolchain needed
+#   4. cargo build from source (in the background when launched by Claude Code)
+# APPLE_MCP_BUILD=download never compiles; APPLE_MCP_BUILD=source never downloads.
+# `scripts/apple-mcp build` switches this install to source builds (rebuilt when sources
+# change); `scripts/apple-mcp download` switches back to release binaries.
 set -euo pipefail
 
 ROOT="${APPLE_MCP_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -22,6 +27,11 @@ BIN_DIR="$DATA/bin"
 BIN="$BIN_DIR/apple-mcp"
 STAMP_FILE="$BIN_DIR/apple-mcp.stamp"
 LOCK="$DATA/build.lock"
+PREFER_SOURCE="$DATA/prefer-source"
+FALLBACK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/apple-mcp/bin"
+REPO="${APPLE_MCP_REPO:-cpoder/claude-apple-plugin}"
+MODE="${APPLE_MCP_BUILD:-auto}"
+VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$SERVER_DIR/Cargo.toml" | head -1)"
 
 log() { printf 'apple-mcp: %s\n' "$*" >&2; }
 
@@ -30,59 +40,118 @@ sha256() {
 }
 
 source_stamp() {
-  # Hash of everything that influences the build.
+  # Hash of everything that influences a source build.
   { cat "$SERVER_DIR/Cargo.toml" "$SERVER_DIR/Cargo.lock" 2>/dev/null; find "$SERVER_DIR/src" -type f -name '*.rs' | LC_ALL=C sort | xargs cat; } | sha256 | cut -c1-16
+}
+
+detect_target() {
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) echo "x86_64-unknown-linux-gnu" ;;
+    Linux-aarch64|Linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
+    Darwin-arm64) echo "aarch64-apple-darwin" ;;
+    Darwin-x86_64) echo "x86_64-apple-darwin" ;;
+    *) echo "" ;;
+  esac
+}
+TARGET="$(detect_target)"
+RELEASE_STAMP="release:v$VERSION:$TARGET"
+
+# Is this stamp acceptable for the current mode?
+stamp_valid() {
+  local stamp="$1"
+  case "$MODE" in
+    source) [ "$stamp" = "source:$(source_stamp)" ] ;;
+    download) [ "$stamp" = "$RELEASE_STAMP" ] ;;
+    *)
+      if [ -e "$PREFER_SOURCE" ]; then
+        [ "$stamp" = "source:$(source_stamp)" ]
+      else
+        [ "$stamp" = "$RELEASE_STAMP" ] || [ "$stamp" = "source:$(source_stamp)" ]
+      fi
+      ;;
+  esac
+}
+
+valid_binary_in() {
+  local dir="$1"
+  [ -x "$dir/apple-mcp" ] && stamp_valid "$(cat "$dir/apple-mcp.stamp" 2>/dev/null || true)"
+}
+
+adopt_fallback() {
+  [ "$FALLBACK_DIR" = "$BIN_DIR" ] && return 1
+  valid_binary_in "$FALLBACK_DIR" || return 1
+  mkdir -p "$BIN_DIR"
+  cp "$FALLBACK_DIR/apple-mcp" "$BIN.tmp" && mv "$BIN.tmp" "$BIN" && cp "$FALLBACK_DIR/apple-mcp.stamp" "$STAMP_FILE"
+  log "reusing the binary from $FALLBACK_DIR"
+}
+
+fetch() {
+  # fetch <url> <out>
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --retry 2 --connect-timeout 10 -o "$2" "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$2" "$1"
+  else
+    log "neither curl nor wget is available"
+    return 1
+  fi
+}
+
+download_release() {
+  if [ -z "$TARGET" ]; then
+    log "no prebuilt binary for $(uname -s)/$(uname -m)"
+    return 1
+  fi
+  local asset base tmp expected actual
+  asset="apple-mcp-v$VERSION-$TARGET.tar.gz"
+  base="https://github.com/$REPO/releases/download/v$VERSION"
+  tmp="$(mktemp -d)"
+  log "downloading $asset from $base ..."
+  if ! fetch "$base/$asset" "$tmp/$asset" || ! fetch "$base/SHA256SUMS.txt" "$tmp/SHA256SUMS.txt"; then
+    log "download failed (no release v$VERSION for $TARGET, or no network)"
+    rm -rf "$tmp"
+    return 1
+  fi
+  expected="$(grep " $asset\$" "$tmp/SHA256SUMS.txt" | awk '{print $1}')"
+  actual="$(sha256 < "$tmp/$asset" | awk '{print $1}')"
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    log "checksum mismatch for $asset (expected ${expected:-?}, got $actual); not installing"
+    rm -rf "$tmp"
+    return 1
+  fi
+  tar -xzf "$tmp/$asset" -C "$tmp"
+  mkdir -p "$BIN_DIR"
+  mv "$tmp/apple-mcp" "$BIN.tmp" && chmod 755 "$BIN.tmp" && mv "$BIN.tmp" "$BIN"
+  echo "$RELEASE_STAMP" > "$STAMP_FILE"
+  rm -rf "$tmp"
+  log "installed prebuilt apple-mcp v$VERSION ($TARGET) in $BIN_DIR"
 }
 
 build() {
   if ! command -v cargo >/dev/null 2>&1; then
-    log "cargo not found. Install Rust (https://rustup.rs) then run: $0 build"
+    log "cargo not found. Install Rust (https://rustup.rs) and run: $0 build — or use a platform with prebuilt binaries ($0 download)"
     return 1
   fi
   mkdir -p "$BIN_DIR"
   log "building the server with cargo (first build takes a few minutes)..."
-  CARGO_TARGET_DIR="$DATA/target" cargo build --release --manifest-path "$SERVER_DIR/Cargo.toml" >&2
+  CARGO_TARGET_DIR="$DATA/target" cargo build --release --locked --manifest-path "$SERVER_DIR/Cargo.toml" >&2
   cp "$DATA/target/release/apple-mcp" "$BIN.tmp" && mv "$BIN.tmp" "$BIN"
-  source_stamp > "$STAMP_FILE"
+  echo "source:$(source_stamp)" > "$STAMP_FILE"
   log "built $BIN"
 }
 
-# Reuse a binary built manually (README: scripts/apple-mcp build) in the default location when
-# Claude Code launches us with its own plugin data directory.
-FALLBACK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/apple-mcp/bin"
-adopt_fallback() {
-  [ "$FALLBACK_DIR" = "$BIN_DIR" ] && return 1
-  [ -x "$FALLBACK_DIR/apple-mcp" ] || return 1
-  [ "$(cat "$FALLBACK_DIR/apple-mcp.stamp" 2>/dev/null || true)" = "$(source_stamp)" ] || return 1
-  mkdir -p "$BIN_DIR"
-  cp "$FALLBACK_DIR/apple-mcp" "$BIN.tmp" && mv "$BIN.tmp" "$BIN" && cp "$FALLBACK_DIR/apple-mcp.stamp" "$STAMP_FILE"
-  log "reusing the binary built in $FALLBACK_DIR"
-}
-
-needs_build() {
-  local stamp
-  stamp="$(source_stamp)"
-  if [ -x "$BIN" ] && [ "$(cat "$STAMP_FILE" 2>/dev/null || true)" = "$stamp" ]; then
-    return 1
+# Make sure a usable binary is in place; returns 1 when a build was started in the background.
+ensure_binary() {
+  valid_binary_in "$BIN_DIR" && return 0
+  adopt_fallback && return 0
+  if [ "$MODE" != "source" ] && [ ! -e "$PREFER_SOURCE" ]; then
+    download_release && return 0
+    if [ "$MODE" = "download" ]; then
+      log "APPLE_MCP_BUILD=download forbids compiling; nothing installed"
+      return 1
+    fi
   fi
-  adopt_fallback && return 1
-  return 0
-}
-
-case "${1:-}" in
-  build|--build)
-    build
-    exit 0
-    ;;
-  check|--check|doctor|--doctor|setup|--setup|icloud|template|--template|--version|-V|--help|-h)
-    if needs_build; then build; fi
-    exec "$BIN" "$@"
-    ;;
-esac
-
-if needs_build; then
   if [ -t 0 ]; then
-    # Interactive terminal: build in the foreground.
     build
   else
     # Launched by Claude Code: build in the background so the MCP startup timeout is not hit,
@@ -91,12 +160,30 @@ if needs_build; then
     if mkdir "$LOCK" 2>/dev/null; then
       ( trap 'rmdir "$LOCK"' EXIT; build >> "$DATA/build.log" 2>&1 ) &
       disown || true
-      log "server binary missing or outdated; building in the background (log: $DATA/build.log). In a few minutes run /mcp and reconnect 'apple' (or restart Claude Code). To build in the foreground instead: APPLE_MCP_DATA_DIR=\"$DATA\" bash \"$0\" build"
+      log "no prebuilt binary available; building from source in the background (log: $DATA/build.log). In a few minutes run /mcp and reconnect 'apple' (or restart Claude Code). Foreground alternative: APPLE_MCP_DATA_DIR=\"$DATA\" bash \"$0\" build"
     else
       log "a build is already running (log: $DATA/build.log); retry in a few minutes."
     fi
-    exit 1
+    return 1
   fi
-fi
+}
 
+case "${1:-}" in
+  build|--build)
+    build
+    touch "$PREFER_SOURCE"
+    exit 0
+    ;;
+  download|--download)
+    rm -f "$PREFER_SOURCE"
+    download_release
+    exit $?
+    ;;
+  check|--check|doctor|--doctor|setup|--setup|icloud|template|--template|--version|-V|--help|-h)
+    ensure_binary || exit 1
+    exec "$BIN" "$@"
+    ;;
+esac
+
+ensure_binary || exit 1
 exec "$BIN" "$@"

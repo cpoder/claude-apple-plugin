@@ -44,7 +44,7 @@ pub fn inline(v: &Value, refs: &Value) -> String {
                 "emphasis" => format!("*{}*", inline(&v["inlineContent"], refs)),
                 "strong" => format!("**{}**", inline(&v["inlineContent"], refs)),
                 "newTerm" | "inlineHead" | "subscript" | "superscript" => inline(&v["inlineContent"], refs),
-                "link" => format!("[{}]({})", inline(&v["inlineContent"], refs).trim().to_string().replace("[]", "").trim().to_string(), s(v, "destination")),
+                "link" => format!("[{}]({})", inline(&v["inlineContent"], refs).trim().to_string().replace("[]", "").trim(), s(v, "destination")),
                 "image" => String::new(),
                 _ => {
                     if v.get("inlineContent").is_some() { inline(&v["inlineContent"], refs) } else { s(v, "text").to_string() }
@@ -194,8 +194,8 @@ pub fn render_doc(doc: &Value, section: &str, max_chars: usize) -> String {
     let abs = inline(&doc["abstract"], refs);
     if !abs.is_empty() { out.push_str(&format!("\n{abs}\n")); }
 
-    if section != "topics" {
-        if let Some(secs) = doc["primaryContentSections"].as_array() {
+    if section != "topics"
+        && let Some(secs) = doc["primaryContentSections"].as_array() {
             for sec in secs {
                 match s(sec, "kind") {
                     "declarations" => {
@@ -255,7 +255,6 @@ pub fn render_doc(doc: &Value, section: &str, max_chars: usize) -> String {
                 }
             }
         }
-    }
 
     if section != "overview" {
         for (key, label) in [("topicSections", "Topics"), ("relationshipsSections", "Relationships"), ("seeAlsoSections", "See Also")] {
@@ -295,11 +294,10 @@ pub fn flatten_index(node: &Value, out: &mut Vec<(String, String, String)>, dept
     if !title.is_empty() && !path.is_empty() {
         out.push((title.to_string(), path.to_string(), ty.to_string()));
     }
-    if depth < max_depth {
-        if let Some(children) = node.get("children") {
+    if depth < max_depth
+        && let Some(children) = node.get("children") {
             flatten_index(children, out, depth + 1, max_depth);
         }
-    }
 }
 
 #[cfg(test)]

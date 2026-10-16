@@ -109,8 +109,11 @@ pub fn unfold_lines(text: &str) -> Vec<String> {
     out
 }
 
+/// A parsed content line: (NAME, params, value).
+pub type ContentLine = (String, Vec<(String, String)>, String);
+
 /// Split `NAME;PARAM=V;P2="a:b":value` into (NAME, params, value).
-pub fn parse_prop(line: &str) -> Option<(String, Vec<(String, String)>, String)> {
+pub fn parse_prop(line: &str) -> Option<ContentLine> {
     let mut in_quotes = false;
     let mut colon = None;
     for (i, c) in line.char_indices() {
@@ -224,11 +227,10 @@ pub fn parse_vevents(ics: &str) -> Vec<Value> {
         }
         let Some(m) = cur.as_mut() else { continue };
         if in_alarm {
-            if let Some((name, _, value)) = parse_prop(&line) {
-                if name == "TRIGGER" {
+            if let Some((name, _, value)) = parse_prop(&line)
+                && name == "TRIGGER" {
                     m.insert("alarm".into(), json!(value));
                 }
-            }
             continue;
         }
         let Some((name, params, value)) = parse_prop(&line) else { continue };
@@ -587,9 +589,8 @@ impl AppleServer {
                     for r in rs {
                         if let Some(p) = r.prop("address-data") {
                             for mut c in parse_vcards(&p.text) {
-                                if let Some(q) = query.as_deref() {
-                                    if !vcard_matches(&c, &q.to_lowercase()) { continue; }
-                                }
+                                if let Some(q) = query.as_deref()
+                                    && !vcard_matches(&c, &q.to_lowercase()) { continue; }
                                 c["href"] = json!(resolve_url(book, &r.href));
                                 c["etag"] = json!(r.text("getetag"));
                                 out.push(c);

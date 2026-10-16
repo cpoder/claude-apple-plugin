@@ -18,16 +18,6 @@ pub struct ProbeResult {
     pub millis: u128,
 }
 
-/// Mirrors `icloud_web::session_dir()` (private there): where the iCloud web session cookies are cached.
-fn icloud_web_session_dir() -> std::path::PathBuf {
-    let base = std::env::var("APPLE_MCP_DATA_DIR")
-        .ok()
-        .filter(|s| !s.trim().is_empty() && !s.contains("${"))
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| dirs::data_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share")).join("apple-mcp"));
-    base.join("icloud-session")
-}
-
 impl ProbeResult {
     pub fn to_json(&self) -> Value {
         json!({"section": self.section, "service": self.label, "configured": self.configured, "ok": self.ok, "detail": self.detail, "ms": self.millis})
@@ -124,7 +114,7 @@ impl AppleServer {
                 // iCloud web services (Drive, Photos, Find My, Reminders, Notes, HME): report readiness only,
                 // never log in from the doctor (a fresh login triggers a 2FA push on the user's devices).
                 let web = if cfg.get_str("icloud", "password").is_some() {
-                    let dir = icloud_web_session_dir();
+                    let dir = crate::tools::icloud_web::session_dir();
                     let cached = std::fs::read_dir(&dir).map(|mut d| d.next().is_some()).unwrap_or(false);
                     if cached {
                         "web services: password set, cached session present (icloud_login reuses it)".to_string()
@@ -148,11 +138,10 @@ impl AppleServer {
         let cfg: Config = self.cfg();
         let mut results = Vec::new();
         for spec in SERVICES {
-            if let Some(list) = only {
-                if !list.iter().any(|s| s == spec.section) {
+            if let Some(list) = only
+                && !list.iter().any(|s| s == spec.section) {
                     continue;
                 }
-            }
             let missing = cfg.missing(spec);
             if !missing.is_empty() {
                 results.push(ProbeResult { section: spec.section, label: spec.label, configured: false, ok: false, detail: format!("not configured (missing: {})", missing.join(", ")), millis: 0 });

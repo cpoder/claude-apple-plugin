@@ -46,11 +46,10 @@ impl AppleServer {
 fn pick(v: &Value, keys: &[&str]) -> Value {
     let mut m = serde_json::Map::new();
     for k in keys {
-        if let Some(x) = v.get(*k) {
-            if !x.is_null() {
+        if let Some(x) = v.get(*k)
+            && !x.is_null() {
                 m.insert(k.to_string(), x.clone());
             }
-        }
     }
     Value::Object(m)
 }

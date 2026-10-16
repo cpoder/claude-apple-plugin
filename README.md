@@ -35,7 +35,7 @@ loads on demand (`app-store-connect`, `app-store-server`, `apple-music`, `weathe
 
 ## Quick start
 
-1. Install the plugin (see below) and build the server once: `bash scripts/apple-mcp build`.
+1. Install the plugin (see below). The first connection downloads the server binary.
 2. In Claude Code run `/apple:setup`, or in a terminal `bash scripts/apple-mcp setup`. It finds the
    keys you downloaded, probes them against every Apple API, derives your Team ID and bundle ids,
    writes the config and prints the exact link to open for anything still missing.
@@ -45,7 +45,10 @@ loads on demand (`app-store-connect`, `app-store-server`, `apple-music`, `weathe
 ## Requirements
 
 - Claude Code 2.1.281 or later
-- A Rust toolchain (`cargo`, https://rustup.rs) to build the server once (Linux, macOS, WSL)
+- Linux (x86_64, arm64), macOS (Apple Silicon, Intel) or WSL: the launcher downloads a prebuilt,
+  checksum-verified server binary from the GitHub release matching the plugin version. Nothing to
+  compile. A Rust toolchain (https://rustup.rs) is only needed on other platforms or to build from
+  source.
 
 ## Install
 
@@ -65,16 +68,21 @@ claude plugin install apple@cpo-plugins
 
 For development only: `claude --plugin-dir /path/to/claude-apple-plugin`.
 
-Build the server once. Otherwise the first MCP connection builds it in the background, fails once
-with an explanatory message, and works after `/mcp` → reconnect:
+### How the server binary gets there
+
+`scripts/apple-mcp` (started by Claude Code through `.mcp.json`) looks for a binary in the plugin
+data directory, then downloads `apple-mcp-v<version>-<target>.tar.gz` from the matching GitHub
+release and verifies it against `SHA256SUMS.txt`. Only when no asset exists for the platform (or
+there is no network) does it fall back to `cargo build`, in the background, and the connection
+succeeds on the next `/mcp` → reconnect.
 
 ```bash
-bash /path/to/claude-apple-plugin/scripts/apple-mcp build
+bash scripts/apple-mcp download   # fetch the release binary now (default behaviour)
+bash scripts/apple-mcp build      # build from source instead, and keep rebuilding when sources change
 ```
 
-The binary is built into `$CLAUDE_PLUGIN_DATA` when Claude Code launches the server (a binary
-built manually into `~/.local/share/apple-mcp` is reused from there) and rebuilt automatically
-when the sources change. `/apple:setup` runs this build for you.
+`APPLE_MCP_BUILD=download` forbids compiling, `APPLE_MCP_BUILD=source` forbids downloading,
+`APPLE_MCP_REPO=owner/repo` points at a fork's releases.
 
 ## Configure
 
@@ -158,6 +166,15 @@ cargo run                   # MCP server on stdio
 Add a service: create `src/tools/<name>.rs` with a `#[tool_router(router = <name>_router, vis = "pub")]`
 impl block, register it in `src/tools/mod.rs` and in `AppleServer::new()` (`server.rs`), add a
 `ServiceSpec` in `config.rs`, a probe in `tools/doctor.rs`, and a skill under `skills/`.
+
+### Releases
+
+CI (`.github/workflows/ci.yml`) runs `cargo test`, `cargo clippy -D warnings`, ShellCheck on the
+launcher and `claude plugin validate` on every push and pull request. Publishing a release
+(`.github/workflows/release.yml`): bump `version` in `server/Cargo.toml`, `.claude-plugin/plugin.json`
+and `.claude-plugin/marketplace.json`, then push a tag `vX.Y.Z` with the same number. The workflow
+builds Linux x86_64/arm64, macOS arm64/x86_64 and Windows x86_64 binaries and attaches them with
+`SHA256SUMS.txt` to the GitHub release that the launcher downloads.
 
 ## Compared to other Apple MCP servers
 

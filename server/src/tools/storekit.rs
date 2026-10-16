@@ -83,13 +83,12 @@ pub fn decode_signed_fields(v: &mut Value, depth: u8) {
                         }
                         Value::Array(arr) => {
                             for item in arr.iter_mut() {
-                                if let Value::String(s) = item {
-                                    if let Ok((_, mut payload)) = jwt::decode_unverified(s) {
+                                if let Value::String(s) = item
+                                    && let Ok((_, mut payload)) = jwt::decode_unverified(s) {
                                         decode_signed_fields(&mut payload, depth + 1);
                                         annotate_ms_dates(&mut payload);
                                         *item = payload;
                                     }
-                                }
                             }
                         }
                         _ => {}
@@ -258,14 +257,12 @@ impl AppleServer {
     #[tool(annotations(read_only_hint = true))]
     pub async fn apple_jws_decode(&self, Parameters(p): Parameters<JwsParams>) -> ToolResult {
         let (mut header, mut payload) = jwt::decode_unverified(&p.jws)?;
-        if !p.include_certificates.unwrap_or(false) {
-            if let Some(obj) = header.as_object_mut() {
-                if let Some(x5c) = obj.get("x5c").and_then(|x| x.as_array()) {
+        if !p.include_certificates.unwrap_or(false)
+            && let Some(obj) = header.as_object_mut()
+                && let Some(x5c) = obj.get("x5c").and_then(|x| x.as_array()) {
                     let n = x5c.len();
                     obj.insert("x5c".into(), json!(format!("[{n} certificates omitted; pass include_certificates=true]")));
                 }
-            }
-        }
         decode_signed_fields(&mut payload, 0);
         annotate_ms_dates(&mut payload);
         Ok(render(&json!({"_note": "signature NOT verified", "header": header, "payload": payload})))

@@ -89,11 +89,10 @@ impl AppleServer {
         validation.set_issuer(&[APPLE_ID]);
         let data = decode::<Value>(&p.identity_token, &key, &validation).map_err(|e| ToolError::new(format!("identity token INVALID: {e}")))?;
         let claims = data.claims;
-        if let Some(n) = &p.nonce {
-            if claims.get("nonce").and_then(|x| x.as_str()) != Some(n.as_str()) {
+        if let Some(n) = &p.nonce
+            && claims.get("nonce").and_then(|x| x.as_str()) != Some(n.as_str()) {
                 crate::bail!("identity token nonce mismatch (token nonce: {:?})", claims.get("nonce"));
             }
-        }
         let mut out = claims.clone();
         if let Some(obj) = out.as_object_mut() {
             for k in ["exp", "iat", "auth_time"] {
@@ -123,11 +122,10 @@ impl AppleServer {
             _ => crate::bail!("provide code (exchange) or refresh_token (refresh)"),
         }
         let mut v = http::json(self.http.post(format!("{APPLE_ID}/auth/token")).form(&form), "Sign in with Apple token").await?;
-        if let Some(idt) = v.get("id_token").and_then(|t| t.as_str()) {
-            if let Ok((_, payload)) = jwt::decode_unverified(idt) {
+        if let Some(idt) = v.get("id_token").and_then(|t| t.as_str())
+            && let Ok((_, payload)) = jwt::decode_unverified(idt) {
                 v["id_token_decoded"] = payload;
             }
-        }
         Ok(render(&v))
     }
 

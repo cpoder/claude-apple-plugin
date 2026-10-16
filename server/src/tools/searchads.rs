@@ -46,11 +46,10 @@ impl AppleServer {
         let org = org_id.or_else(|| cfg.get_i64(SECTION, "org_id"));
         let url = if path.starts_with("http") { path.to_string() } else { format!("{BASE}/{}", path.trim_start_matches('/')) };
         let mut req = self.http.request(http::method(method)?, &url).bearer_auth(token);
-        if let Some(o) = org {
-            if !path.contains("acls") {
+        if let Some(o) = org
+            && !path.contains("acls") {
                 req = req.header("X-AP-Context", format!("orgId={o}"));
             }
-        }
         if !query.is_empty() {
             req = req.query(query);
         }

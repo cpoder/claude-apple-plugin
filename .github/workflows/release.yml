@@ -1,0 +1,117 @@
+name: Release
+
+# Builds the apple-mcp server for every supported platform and publishes the binaries
+# (plus SHA256SUMS.txt) on a GitHub Release. The launcher script downloads the asset that
+# matches the plugin version, so users never need a Rust toolchain.
+#
+# Trigger: push a tag `vX.Y.Z` equal to the version in server/Cargo.toml (and plugin.json),
+# or run the workflow manually (the release is created for the version in Cargo.toml).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          v="v$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' server/Cargo.toml | head -1)"
+          p="$(sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -1)"
+          if [ "v$p" != "$v" ]; then
+            echo "plugin.json version ($p) differs from server/Cargo.toml version ($v)" >&2; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$v" ]; then
+            echo "tag $GITHUB_REF_NAME does not match server/Cargo.toml version $v" >&2; exit 1
+          fi
+          echo "tag=$v" >> "$GITHUB_OUTPUT"
+          echo "Releasing $v"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-14, target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    # Windows is best-effort (the launcher is bash; the .exe is for manual MCP configs).
+    continue-on-error: ${{ matrix.target == 'x86_64-pc-windows-msvc' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+          key: ${{ matrix.target }}
+      - name: Build
+        working-directory: server
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package (tar.gz)
+        if: runner.os != 'Windows'
+        run: |
+          asset="apple-mcp-${{ needs.version.outputs.tag }}-${{ matrix.target }}.tar.gz"
+          tar -czf "$asset" -C "server/target/${{ matrix.target }}/release" apple-mcp
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+      - name: Package (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $asset = "apple-mcp-${{ needs.version.outputs.tag }}-${{ matrix.target }}.zip"
+          Compress-Archive -Path "server/target/${{ matrix.target }}/release/apple-mcp.exe" -DestinationPath $asset
+          "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Smoke test
+        if: runner.os != 'Windows'
+        run: "server/target/${{ matrix.target }}/release/apple-mcp" --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [version, build]
+    if: always() && needs.version.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls -la
+          sha256sum apple-mcp-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ needs.version.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber
+          else
+            gh release create "$tag" dist/* --title "apple-mcp $tag" --generate-notes
+          fi

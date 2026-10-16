@@ -390,9 +390,8 @@ impl AppleServer {
                         let ident = t["destination"]["identifier"].as_str().unwrap_or("");
                         let path = ident.find("/documentation/").map(|i| ident[i + "/documentation/".len()..].to_lowercase()).unwrap_or_default();
                         let hay = format!("{} {} {}", title.to_lowercase(), tags.join(" ").to_lowercase(), path);
-                        if let Some(q) = &q {
-                            if !q.split_whitespace().all(|w| hay.contains(w)) { continue; }
-                        }
+                        if let Some(q) = &q
+                            && !q.split_whitespace().all(|w| hay.contains(w)) { continue; }
                         total += 1;
                         if lines.len() < limit {
                             lines.push(format!("{title}  `{path}`  [{gname}] {}", tags.join(", ")));

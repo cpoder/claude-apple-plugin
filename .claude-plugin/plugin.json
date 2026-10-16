@@ -6,6 +6,21 @@
   "author": {
     "name": "Cyril Poder"
   },
+  "homepage": "https://github.com/cpoder/claude-apple-plugin",
+  "repository": "https://github.com/cpoder/claude-apple-plugin",
   "license": "MIT",
-  "keywords": ["apple", "app-store-connect", "testflight", "apple-music", "weatherkit", "mapkit", "cloudkit", "apns", "icloud", "caldav", "mcp", "rust"]
+  "keywords": [
+    "apple",
+    "app-store-connect",
+    "testflight",
+    "apple-music",
+    "weatherkit",
+    "mapkit",
+    "cloudkit",
+    "apns",
+    "icloud",
+    "caldav",
+    "mcp",
+    "rust"
+  ]
 }

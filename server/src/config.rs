@@ -1,8 +1,10 @@
 //! Credentials/config loading: JSON file + environment overrides.
 //!
 //! Lookup order for `section.key`:
+//!
 //! 1. env `APPLE_MCP_<SECTION>_<KEY>` (upper-case)
 //! 2. `config.json` → `section.key`
+//!
 //! For `team_id`, the top-level `team_id` / `APPLE_TEAM_ID` is the fallback.
 
 use std::path::{Path, PathBuf};
@@ -113,11 +115,10 @@ pub const CONFIG_TEMPLATE: &str = r#"{
 
 impl Config {
     pub fn default_path() -> PathBuf {
-        if let Ok(p) = std::env::var(CONFIG_ENV) {
-            if !p.trim().is_empty() {
+        if let Ok(p) = std::env::var(CONFIG_ENV)
+            && !p.trim().is_empty() {
                 return expand_tilde(p.trim());
             }
-        }
         dirs::config_dir()
             .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
             .join("apple-mcp")
@@ -146,11 +147,10 @@ impl Config {
 
     /// String value with env override. Numbers are stringified. Empty strings count as missing.
     pub fn get_str(&self, section: &str, key: &str) -> Option<String> {
-        if let Ok(v) = std::env::var(Self::env_name(section, key)) {
-            if !v.trim().is_empty() {
+        if let Ok(v) = std::env::var(Self::env_name(section, key))
+            && !v.trim().is_empty() {
                 return Some(v.trim().to_string());
             }
-        }
         let v = self.data.get(section)?.as_object()?.get(key)?;
         match v {
             Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
@@ -183,16 +183,14 @@ impl Config {
         if let Some(t) = self.get_str(section, "team_id") {
             return Ok(t);
         }
-        if let Ok(t) = std::env::var("APPLE_TEAM_ID") {
-            if !t.trim().is_empty() {
+        if let Ok(t) = std::env::var("APPLE_TEAM_ID")
+            && !t.trim().is_empty() {
                 return Ok(t.trim().to_string());
             }
-        }
-        if let Some(Value::String(t)) = self.data.get("team_id") {
-            if !t.trim().is_empty() {
+        if let Some(Value::String(t)) = self.data.get("team_id")
+            && !t.trim().is_empty() {
                 return Ok(t.trim().to_string());
             }
-        }
         Err(ToolError::new(format!(
             "Missing `{section}.team_id` (or top-level `team_id` / env APPLE_TEAM_ID) in {}",
             self.path.display()
@@ -420,11 +418,10 @@ pub fn write_private(path: &Path, content: &str) -> Result<(), ToolError> {
 }
 
 pub fn expand_tilde(p: &str) -> PathBuf {
-    if let Some(rest) = p.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
+    if let Some(rest) = p.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir() {
             return home.join(rest);
         }
-    }
     Path::new(p).to_path_buf()
 }
 

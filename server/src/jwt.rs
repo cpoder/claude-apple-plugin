@@ -83,11 +83,10 @@ impl TokenCache {
     ) -> Result<String, ToolError> {
         {
             let guard = self.inner.lock().expect("token cache");
-            if let Some((tok, exp)) = guard.get(key) {
-                if Instant::now() < *exp {
+            if let Some((tok, exp)) = guard.get(key)
+                && Instant::now() < *exp {
                     return Ok(tok.clone());
                 }
-            }
         }
         let tok = make()?;
         self.inner

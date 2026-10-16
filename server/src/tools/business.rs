@@ -169,8 +169,8 @@ impl AppleServer {
     #[tool(annotations(read_only_hint = true, open_world_hint = true))]
     pub async fn abm_mdm_servers(&self, Parameters(p): Parameters<AbmServersParams>) -> ToolResult {
         let mut servers = self.abm_call("GET", "mdmServers", &[], None, 1).await?;
-        if p.include_devices.unwrap_or(false) {
-            if let Some(arr) = servers["data"].as_array_mut() {
+        if p.include_devices.unwrap_or(false)
+            && let Some(arr) = servers["data"].as_array_mut() {
                 for s in arr.iter_mut().take(20) {
                     if let Some(id) = s["id"].as_str().map(|x| x.to_string()) {
                         let devs = self.abm_call("GET", &format!("mdmServers/{id}/relationships/devices"), &[("limit".into(), "1000".into())], None, 5).await.unwrap_or(Value::Null);
@@ -180,7 +180,6 @@ impl AppleServer {
                     }
                 }
             }
-        }
         Ok(render(&servers))
     }
 
