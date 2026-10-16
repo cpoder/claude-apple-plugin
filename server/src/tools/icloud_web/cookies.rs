@@ -81,11 +81,7 @@ pub fn parse_set_cookie(raw: &str, url: &Url) -> Option<Cookie> {
                     c.expires = Some(now + secs);
                 }
             }
-            "expires" => {
-                if c.expires.is_none() {
-                    c.expires = parse_expires(v);
-                }
-            }
+            "expires" if c.expires.is_none() => c.expires = parse_expires(v),
             _ => {}
         }
     }
