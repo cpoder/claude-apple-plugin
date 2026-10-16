@@ -1,6 +1,6 @@
 ---
 name: icloud
-description: iCloud access reference for the apple plugin — Calendar events (CalDAV), Contacts (CardDAV), Mail (IMAP/SMTP) with an app-specific password, and the optional Python sidecar for iCloud Drive, Photos, Find My, Reminders, Notes and Hide My Email. Load for personal iCloud data tasks (calendar, contacts, email, files, photos, find my device, reminders, notes) or icloud_* tools.
+description: iCloud access reference for the apple plugin — Calendar events (CalDAV), Contacts (CardDAV), Mail (IMAP/SMTP) with an app-specific password, and the iCloud web tools (Apple ID password + 2FA) for Reminders, Notes, iCloud Drive, Photos, Find My and Hide My Email. Load for personal iCloud data tasks (calendar, contacts, email, files, photos, find my device, reminders, notes) or icloud_* tools.
 user-invocable: false
 ---
 
@@ -24,7 +24,7 @@ account.apple.com → Sign-In and Security → App-Specific Passwords (2FA requi
   `start` as `YYYY-MM-DD` creates an all-day event (end exclusive, defaults to next day).
 - `icloud_event_update href …` changes fields of the master event (pass `etag` from the listing to
   avoid overwriting concurrent edits); `icloud_event_delete href`.
-- Reminders are **not** on CalDAV anymore (Apple moved them to CloudKit) — use the sidecar.
+- Reminders are **not** on CalDAV anymore (Apple moved them to CloudKit) — use the iCloud web tools below.
 
 ## Contacts (CardDAV, `contacts.icloud.com`)
 
@@ -46,17 +46,35 @@ account.apple.com → Sign-In and Security → App-Specific Passwords (2FA requi
 - `icloud_mail_flag uid seen flagged`; `icloud_mail_move uid destination` ("Deleted Messages" =
   trash, Archive, Junk, or any folder). Confirm with the user before moving/trashing.
 
-## Optional sidecar: Drive, Photos, Find My, Reminders, Notes, Hide My Email
+## iCloud web: Reminders, Notes, Drive, Photos, Find My, Hide My Email
 
-Python MCP server `apple-icloud-web` (pyicloud, private Apple web APIs — may break, needs the real
-Apple ID `password` in `icloud.password` and a one-time 2FA). Register with
-`/apple:setup` or `claude mcp add --scope user apple-icloud-web -- uv run --project <plugin>/sidecar/icloud-web apple-icloud-web-mcp`.
-Tools: `icloud_login`, `icloud_2fa code`, `icloud_account`, `icloud_findmy_devices`,
-`icloud_findmy_action device action=play_sound|display_message|lost_mode`, `icloud_drive_list|download|upload|mkdir`,
-`icloud_photos_albums|list|download`, `icloud_reminders_lists`, `icloud_reminders list`,
-`icloud_reminder_create`, `icloud_reminder_complete`, `icloud_notes_folders|recent`, `icloud_note`,
-`icloud_hme_list|create|set_active`. If a call says 2FA is required: ask the user for the code shown
-on their device and call `icloud_2fa`.
+Built into the same Rust server, through the private icloud.com web APIs (what the web app and
+pyicloud use — may break without notice). Needs the real Apple ID `password` in `icloud.password`
+(not an app-specific password) and one two-factor code at first login; the trusted session is then
+cached on disk (plugin data dir, `icloud-session/`).
+
+Login: any tool logs in silently from the cache. If it answers that 2FA is required, Apple has
+pushed a 6-digit code to the user's trusted devices: ask for it and call `icloud_2fa code`. No
+prompt on the devices → `icloud_login sms=true` sends it by SMS to the trusted phone. If Apple
+asks to accept updated iCloud terms, the user must sign in once at https://www.icloud.com/.
+`icloud_login force=true` discards the cached session. From a shell (MCP not connected):
+`bash scripts/apple-mcp icloud login|sms|2fa <code>|lists|reminders <list>`.
+
+- Reminders (CloudKit zone `Reminders`): `icloud_reminders_lists`; `icloud_reminders list include_completed limit`
+  (list by id or name); `icloud_reminder_create list title notes due time_zone priority all_day flagged parent_reminder_id`
+  (priority 0 none / 1 high / 5 medium / 9 low); `icloud_reminder_complete reminder_id completed`;
+  `icloud_reminder_delete reminder_id` (soft delete, confirm first).
+- Notes: `icloud_notes_folders`; `icloud_notes_recent limit folder_id`; `icloud_note note_id max_chars`
+  (body rendered as Markdown: headings, checklists, tables; locked notes are not readable).
+- Drive: `icloud_drive_list path`; `icloud_drive_download path destination overwrite`;
+  `icloud_drive_upload local_path folder`; `icloud_drive_mkdir parent name`.
+- Photos: `icloud_photos_albums`; `icloud_photos_list album limit offset` (default album "Library", newest first);
+  `icloud_photos_download filename destination album version=original|medium|thumb`.
+- Find My: `icloud_findmy_devices name`; `icloud_findmy_action device action=play_sound|display_message|lost_mode message phone`
+  (no erase).
+- Hide My Email: `icloud_hme_list`; `icloud_hme_create label note`; `icloud_hme_set_active anonymous_id active`;
+  `icloud_hme_delete anonymous_id`.
+- `icloud_account`: devices, storage usage, family.
 
 Safety: never print app-specific passwords or the Apple ID password; Find My lost mode and
 device messages are visible to whoever holds the device — confirm before acting.

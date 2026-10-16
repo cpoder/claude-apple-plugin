@@ -6,6 +6,7 @@ pub mod docs;
 pub mod doctor;
 pub mod icloud_dav;
 pub mod icloud_mail;
+pub mod icloud_web;
 pub mod maps;
 pub mod meta;
 pub mod music;

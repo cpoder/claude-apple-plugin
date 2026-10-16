@@ -4,10 +4,6 @@ server/target/
 config.json
 *.p8
 *.pem
-# Python sidecar
-sidecar/**/.venv/
-sidecar/**/__pycache__/
-*.pyc
 # editors
 .DS_Store
 .idea/

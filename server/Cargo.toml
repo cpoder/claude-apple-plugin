@@ -16,7 +16,7 @@ schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query", "form", "http2", "gzip", "multipart", "charset"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query", "form", "http2", "gzip", "multipart", "charset", "cookies", "stream"] }
 jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
 p256 = { version = "0.14", features = ["ecdsa", "pem", "pkcs8"] }
 base64 = "0.23"
@@ -32,6 +32,7 @@ mailparse = "0.16"
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 getrandom = "0.4"
+num-bigint = "0.4"
 anyhow = "1"
 dirs = "7"
 tracing = "0.1"

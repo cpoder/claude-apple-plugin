@@ -47,6 +47,10 @@ async fn main() -> anyhow::Result<()> {
             }
             return Ok(());
         }
+        Some("icloud") => {
+            let server = server::AppleServer::new();
+            return tools::icloud_web::cli(&server, &args[1..]).await;
+        }
         Some("setup") | Some("--setup") => {
             return setup::run(&args[1..]).await;
         }
@@ -56,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Some("--help") | Some("-h") => {
             println!(
-                "apple-mcp (MCP server over stdio)\n\n  apple-mcp            run the MCP server on stdin/stdout\n  apple-mcp --check    show which Apple services are configured\n  apple-mcp --doctor [section...]  verify configured credentials with read-only calls\n  apple-mcp setup [auto|set|discover|links|open|pubkey|wizard]  automated credential setup (setup --help)\n  apple-mcp --template print a config.json template\n  apple-mcp --version\n\nConfig file: $APPLE_MCP_CONFIG or ~/.config/apple-mcp/config.json\nEnv overrides: APPLE_MCP_<SECTION>_<KEY> (e.g. APPLE_MCP_APP_STORE_CONNECT_KEY_ID), APPLE_TEAM_ID"
+                "apple-mcp (MCP server over stdio)\n\n  apple-mcp            run the MCP server on stdin/stdout\n  apple-mcp --check    show which Apple services are configured\n  apple-mcp --doctor [section...]  verify configured credentials with read-only calls\n  apple-mcp setup [auto|set|discover|links|open|pubkey|wizard]  automated credential setup (setup --help)\n  apple-mcp icloud login|2fa <code>|lists|reminders <list>  drive the iCloud web login from a shell\n  apple-mcp --template print a config.json template\n  apple-mcp --version\n\nConfig file: $APPLE_MCP_CONFIG or ~/.config/apple-mcp/config.json\nEnv overrides: APPLE_MCP_<SECTION>_<KEY> (e.g. APPLE_MCP_APP_STORE_CONNECT_KEY_ID), APPLE_TEAM_ID"
             );
             return Ok(());
         }

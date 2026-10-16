@@ -1,38 +1,60 @@
 # Apple plugin for Claude Code
 
-Claude Code plugin that gives Claude access to Apple's **online** services through a single
+A Claude Code plugin that gives Claude access to Apple's **online** services through a single
 MCP server written in **Rust** ([rmcp](https://crates.io/crates/rmcp)), plus skills that teach
-Claude each API, and an optional Python sidecar for the iCloud services that have no official API.
+Claude each API and an agent for multi-step tasks. 125 tools, one binary, no Node or Python,
+runs on Linux, macOS and WSL. The iCloud services that have no official API (Reminders, Notes,
+Drive, Photos, Find My, Hide My Email) are reached through the same server via the icloud.com
+web session.
+
+## What it covers
 
 | Family | Tools | What you can do |
 | :- | :- | :- |
-| Public (no credentials) | `itunes_search`, `itunes_lookup`, `apple_charts`, `apple_system_status`, `apple_docs`, `apple_docs_index`, `apple_technologies`, `apple_news` | App Store / iTunes catalog, top charts, Apple outages, developer documentation rendered as Markdown, Apple & developer news |
-| App Store Connect | `asc_*` (18), `notary_*` (2) | apps, builds, TestFlight groups/testers, App Store versions, customer reviews & replies, signing assets, users, sales/finance reports, Xcode Cloud, notarization status |
+| Public (no credentials) | `itunes_search`, `itunes_lookup`, `apple_charts`, `apple_system_status`, `apple_docs`, `apple_docs_index`, `apple_technologies`, `apple_news` | App Store / iTunes catalog, top charts, Apple outages, developer documentation rendered as Markdown, Apple and developer news |
+| Server | `apple_status`, `apple_configure`, `apple_test_service`, `apple_config_template`, `apple_reload_config` | see what is configured, write credentials safely, verify every service with a read-only call |
+| App Store Connect | `asc_*` (16), `notary_*` (2) | apps, builds, TestFlight groups and testers, App Store versions, customer reviews and replies, signing assets, users, sales and finance reports, Xcode Cloud, notarization status |
 | App Store Server | `storekit_*` (8), `apple_jws_decode` | in-app purchase transactions, subscription status, order lookup, refunds, server notifications (JWS decoded) |
-| Apple Music | `music_*` (8) | catalog search/lookup/charts, user library, playlists |
-| WeatherKit | `weather`, `weather_*` (3) | current conditions, hourly/daily forecasts, next-hour precipitation, alerts |
+| Apple Music | `music_*` (8) | catalog search, lookup, charts, user library, playlists |
+| WeatherKit | `weather`, `weather_*` (3) | current conditions, hourly and daily forecasts, next-hour precipitation, alerts |
 | Apple Maps Server | `maps_*` (8) | geocoding, place search, autocomplete, ETAs, directions, place details |
-| CloudKit Web Services | `cloudkit_*` (5) | query / lookup / modify records in a container's public database |
-| APNs | `apns_send` | push notifications (alert, background, Live Activity, VoIP…) over HTTP/2 |
+| CloudKit Web Services | `cloudkit_*` (5) | query, look up and modify records in a container's public database |
+| APNs | `apns_send` | push notifications (alert, background, Live Activity, VoIP...) over HTTP/2 |
 | Sign in with Apple | `siwa_*` (5) | client secret, identity-token verification, code exchange, refresh, revoke |
 | Business / School Manager | `abm_*` (6) | device inventory, MDM servers, device assignment |
 | Search Ads | `searchads_*` (4) | organizations, campaigns, performance reports |
-| Apple News Publisher | `news_*` (6) | channel, sections, articles, publish/update |
-| iCloud | `icloud_calendars`, `icloud_events`, `icloud_event_*`, `icloud_contacts`, `icloud_contact_*`, `icloud_mail_*` | Calendar (CalDAV), Contacts (CardDAV), Mail (IMAP/SMTP) |
-| iCloud web (optional sidecar) | `icloud_findmy_*`, `icloud_drive_*`, `icloud_photos_*`, `icloud_reminders*`, `icloud_notes*`, `icloud_hme_*` | Find My, iCloud Drive, Photos, Reminders, Notes, Hide My Email via pyicloud |
+| Apple News Publisher | `news_*` (6) | channel, sections, articles, publish and update |
+| iCloud (app-specific password) | `icloud_calendars`, `icloud_events`, `icloud_event_*`, `icloud_contacts`, `icloud_contact_*`, `icloud_mail_*` | Calendar (CalDAV), Contacts (CardDAV), Mail (IMAP/SMTP) |
+| iCloud web (Apple ID password + 2FA once) | `icloud_login`, `icloud_2fa`, `icloud_account`, `icloud_reminders*`, `icloud_reminder_*`, `icloud_notes*`, `icloud_note`, `icloud_drive_*`, `icloud_photos_*`, `icloud_findmy_*`, `icloud_hme_*` | Reminders, Notes, iCloud Drive, Photos, Find My, Hide My Email through the private icloud.com APIs (SRP login, trusted session cached) |
 
-Skills: `/apple:setup`, `/apple:status`, `/apple:docs <query>`, plus reference skills Claude
+Every authenticated family also has a generic `*_request` tool for endpoints without a dedicated
+tool. Skills: `/apple:setup`, `/apple:status`, `/apple:docs <query>`, plus reference skills Claude
 loads on demand (`app-store-connect`, `app-store-server`, `apple-music`, `weatherkit`,
 `apple-maps`, `cloudkit`, `apns`, `sign-in-with-apple`, `apple-business-manager`,
 `apple-search-ads`, `apple-news`, `icloud`). Agent: `apple:apple-expert`.
 
+## Quick start
+
+1. Install the plugin (see below) and build the server once: `bash scripts/apple-mcp build`.
+2. In Claude Code run `/apple:setup`, or in a terminal `bash scripts/apple-mcp setup`. It finds the
+   keys you downloaded, probes them against every Apple API, derives your Team ID and bundle ids,
+   writes the config and prints the exact link to open for anything still missing.
+3. Check with `/apple:status`. The public tools (App Store search, charts, Apple system status,
+   developer documentation) work without any credentials.
+
 ## Requirements
 
-- Claude Code ≥ 2.1.281
-- Rust toolchain (`cargo`, https://rustup.rs) to build the server once (Linux, macOS, WSL)
-- Optional: `uv` + Python ≥ 3.10 for the iCloud web sidecar
+- Claude Code 2.1.281 or later
+- A Rust toolchain (`cargo`, https://rustup.rs) to build the server once (Linux, macOS, WSL)
 
 ## Install
+
+From GitHub:
+
+```bash
+claude plugin marketplace add cpoder/claude-apple-plugin
+claude plugin install apple@cpo-plugins
+```
 
 From a local checkout (loads in place, so edits are picked up on restart):
 
@@ -41,17 +63,17 @@ claude plugin marketplace add /path/to/claude-apple-plugin
 claude plugin install apple@cpo-plugins
 ```
 
-Or for development only: `claude --plugin-dir /path/to/claude-apple-plugin`.
+For development only: `claude --plugin-dir /path/to/claude-apple-plugin`.
 
-Build the server once (otherwise the first MCP connection builds it in the background, fails
-once with an explanatory message, and works after `/mcp` → reconnect):
+Build the server once. Otherwise the first MCP connection builds it in the background, fails once
+with an explanatory message, and works after `/mcp` → reconnect:
 
 ```bash
 bash /path/to/claude-apple-plugin/scripts/apple-mcp build
 ```
 
-The binary is built into `~/.local/share/apple-mcp` (or `$CLAUDE_PLUGIN_DATA` when Claude Code
-launches the server; a binary built manually is reused from there) and rebuilt automatically
+The binary is built into `$CLAUDE_PLUGIN_DATA` when Claude Code launches the server (a binary
+built manually into `~/.local/share/apple-mcp` is reused from there) and rebuilt automatically
 when the sources change. `/apple:setup` runs this build for you.
 
 ## Configure
@@ -82,12 +104,13 @@ the key once. `setup auto` does the rest:
   browser, also from WSL).
 
 Values can be passed as `section.key=value`, as a JSON object on stdin (`--stdin`, for
-secrets and pasted PEM keys), or through Claude: paste the key content or its path in the chat.
-Each section is independent: configure only the services you use. Environment variables
-override the file (`APPLE_MCP_<SECTION>_<KEY>`, e.g. `APPLE_MCP_APP_STORE_CONNECT_KEY_ID`;
-`APPLE_TEAM_ID`; `APPLE_MCP_CONFIG` to point at another file). The server reloads the file when
-it changes. Check with `bash scripts/apple-mcp check` (what is configured),
-`bash scripts/apple-mcp doctor` (one read-only call per configured service) or `/apple:status`.
+secrets and pasted PEM keys), or through Claude: paste the key content or its path in the chat
+and Claude calls `apple_configure`. Each section is independent: configure only the services you
+use. Environment variables override the file (`APPLE_MCP_<SECTION>_<KEY>`, e.g.
+`APPLE_MCP_APP_STORE_CONNECT_KEY_ID`; `APPLE_TEAM_ID`; `APPLE_MCP_CONFIG` to point at another
+file). The server reloads the file whenever it changes on disk. Check with
+`bash scripts/apple-mcp check` (what is configured), `bash scripts/apple-mcp doctor` (one
+read-only call per configured service), `apple_test_service` from Claude, or `/apple:status`.
 
 | Section | Credentials | Where |
 | :- | :- | :- |
@@ -102,7 +125,7 @@ it changes. Check with `bash scripts/apple-mcp check` (what is configured),
 | `business_manager` | API client (client id, key id, `.pem`) | Apple Business Manager → Preferences → API |
 | `search_ads` | API client (generated locally, public key uploaded) + org id | Apple Search Ads → Account Settings → API |
 | `news` | channel ID, key ID, key secret | News Publisher |
-| `icloud` | Apple ID e-mail + app-specific password (+ full password for the sidecar) | account.apple.com → App-Specific Passwords |
+| `icloud` | Apple ID e-mail + app-specific password (Calendar/Contacts/Mail); + the full Apple ID `password` for the iCloud web tools (Reminders, Notes, Drive, Photos, Find My, Hide My Email; one 2FA code at first login) | account.apple.com → App-Specific Passwords |
 
 ## Layout
 
@@ -112,9 +135,11 @@ it changes. Check with `bash scripts/apple-mcp check` (what is configured),
 scripts/apple-mcp              launcher: builds with cargo into the plugin data dir, then execs the binary
 server/                        Rust crate `apple-mcp` (rmcp 3, reqwest, p256 ES256 JWTs, roxmltree, imap, lettre)
   src/tools/*.rs               one module per Apple service (each adds a tool router)
+  src/tools/icloud_web/        icloud.com web session (SRP + 2FA, cookies) and Reminders/Notes/Drive/Photos/Find My/Hide My Email
+  src/tools/doctor.rs          one read-only probe per service (apple_test_service, `apple-mcp doctor`)
+  src/setup.rs                 `apple-mcp setup`: credential discovery, probing, config writing
 skills/*/SKILL.md              /apple:setup, /apple:status, /apple:docs + API reference skills
 agents/apple-expert.md         subagent for multi-step Apple tasks
-sidecar/icloud-web/            optional Python MCP server (pyicloud) for Drive/Photos/Find My/Reminders/Notes
 config.example.json            every config section with where to get each credential
 ```
 
@@ -122,34 +147,37 @@ config.example.json            every config section with where to get each crede
 
 ```bash
 cd server
-cargo test                  # unit tests (JWT, CloudKit signature, ICS/vCard/WebDAV parsing, docs rendering…)
+cargo test                  # unit tests (JWT, CloudKit signature, SRP, ICS/vCard/WebDAV parsing, docs rendering...)
 cargo run -- --check        # config status
 cargo run -- doctor         # one read-only call per configured service
 cargo run -- setup auto     # automated credential setup (setup --help)
+cargo run -- icloud login   # iCloud web session from a shell (icloud 2fa <code> | sms | lists | reminders <list>)
 cargo run                   # MCP server on stdio
 ```
 
 Add a service: create `src/tools/<name>.rs` with a `#[tool_router(router = <name>_router, vis = "pub")]`
 impl block, register it in `src/tools/mod.rs` and in `AppleServer::new()` (`server.rs`), add a
-`ServiceSpec` in `config.rs`, and a skill under `skills/`.
+`ServiceSpec` in `config.rs`, a probe in `tools/doctor.rs`, and a skill under `skills/`.
+
+## Compared to other Apple MCP servers
+
+- Breadth: most projects cover one service (App Store Connect, iCloud mail/calendar, Apple Music,
+  Notes). This plugin covers twelve authenticated families plus the public endpoints, and ships
+  skills and an agent for Claude Code.
+- Portability: one Rust binary, no AppleScript, so it works headless on Linux and WSL.
+- Setup: `setup auto` discovers and probes keys instead of asking you to fill a config by hand.
+- Depth: App Store Connect-only servers generated from Apple's OpenAPI spec expose far more
+  endpoints (hundreds of tools); here the common workflows are dedicated tools and everything else
+  goes through `asc_request`.
 
 ## Notes
 
-- Responses are JSON, trimmed to ~50k characters; use limits/fields/filters for big resources.
-- Tool errors carry Apple's HTTP status + message + a hint (401 key/clock, 403 role, 429 rate limit).
-- The server never prints secrets; keep `config.json` and `.p8` keys at mode 600.
-- iTunes Search API is rate limited (~20 calls/min). WeatherKit includes 500k calls/month, Maps 250k/day.
-- The iCloud web sidecar uses Apple's private web APIs via pyicloud and can break without notice.
-
-## Démarrage rapide (FR)
-
-1. `claude plugin marketplace add /chemin/vers/claude-apple-plugin` puis `claude plugin install apple@cpo-plugins`.
-2. `bash scripts/apple-mcp build` (compile le serveur Rust une fois, quelques minutes).
-3. Dans Claude Code : `/apple:setup` (ou `bash scripts/apple-mcp setup` dans un terminal) :
-   il trouve les clés téléchargées, les teste contre chaque API Apple, déduit le Team ID et les
-   bundle ids, écrit le config et affiche le lien exact à ouvrir pour ce qui manque. Collez la
-   clé obtenue (ou laissez-la dans Téléchargements) et relancez.
-4. `/apple:status` pour vérifier ; les outils publics (recherche App Store, classements, état des
-   services Apple, documentation développeur) fonctionnent sans aucun identifiant.
+- Responses are JSON, trimmed to about 50k characters; use limits, fields and filters for big resources.
+- Tool errors carry Apple's HTTP status and message plus a hint (401 key/clock, 403 role, 429 rate limit).
+- The server never prints secrets; `config.json` and key files are written with mode 600.
+- Signed StoreKit payloads are decoded, not signature-verified; verify the x5c chain yourself before trusting a payload received from a third party.
+- iTunes Search API is rate limited (about 20 calls/min). WeatherKit includes 500k calls/month, Maps 250k/day.
+- The iCloud web tools use Apple's private icloud.com APIs (the same calls as the web app) and can break without notice. The session (cookies + trust token) is cached in the plugin data dir so the 2FA code is asked once.
+- Version 0.1.0: the public tools and the iCloud web login path are verified live; the other authenticated families follow Apple's documentation but have had less real-world testing. Issues and pull requests are welcome.
 
 License: MIT.

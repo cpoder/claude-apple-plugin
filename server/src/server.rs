@@ -56,7 +56,14 @@ impl AppleServer {
                 + Self::searchads_router()
                 + Self::news_router()
                 + Self::icloud_dav_router()
-                + Self::icloud_mail_router(),
+                + Self::icloud_mail_router()
+                + Self::icloud_web_router()
+                + Self::icloud_reminders_router()
+                + Self::icloud_notes_router()
+                + Self::icloud_hme_router()
+                + Self::icloud_findmy_router()
+                + Self::icloud_drive_router()
+                + Self::icloud_photos_router(),
         }
     }
 

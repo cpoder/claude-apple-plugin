@@ -56,6 +56,7 @@
   "icloud": {
     "_where": "account.apple.com > Sign-In and Security > App-Specific Passwords (needs 2FA). apple_id is the iCloud email.",
     "apple_id": "you@icloud.com", "app_specific_password": "xxxx-xxxx-xxxx-xxxx",
+    "password": "optional: the full Apple ID password, only for the iCloud web tools (Reminders, Notes, Drive, Photos, Find My, Hide My Email); one 2FA code at first login",
     "mail_from": "optional sender address (must be an iCloud address or alias), defaults to apple_id",
     "mail_from_name": "optional display name"
   }

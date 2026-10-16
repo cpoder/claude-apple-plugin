@@ -74,7 +74,7 @@ case "${1:-}" in
     build
     exit 0
     ;;
-  check|--check|doctor|--doctor|setup|--setup|template|--template|--version|-V|--help|-h)
+  check|--check|doctor|--doctor|setup|--setup|icloud|template|--template|--version|-V|--help|-h)
     if needs_build; then build; fi
     exec "$BIN" "$@"
     ;;

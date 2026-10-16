@@ -33,7 +33,7 @@ Otherwise ask once (AskUserQuestion, several allowed) which of these the user wa
 App Store Connect · App Store Server (in-app purchases) · Apple Music · WeatherKit ·
 Apple Maps · CloudKit · APNs push · Sign in with Apple · Business/School Manager ·
 Search Ads · Apple News Publisher · iCloud (Calendar/Contacts/Mail) · iCloud web extras
-(Drive/Photos/Find My/Reminders/Notes, see §5). Then run `setup auto --json --want <sections>`.
+(Reminders/Notes/Drive/Photos/Find My/Hide My Email, see §5). Then run `setup auto --json --want <sections>`.
 
 ## 2. Read the report, show links, collect only what is missing
 
@@ -96,17 +96,19 @@ Never echo a secret or a private key back; refer to key files by name.
 - WeatherKit can take ~30 minutes to activate after enabling it on the key / Services ID: a 401
   right after creation is expected; say so.
 
-## 5. Optional iCloud web sidecar (Drive, Photos, Find My, Reminders, Notes, Hide My Email)
+## 5. iCloud web extras (Reminders, Notes, Drive, Photos, Find My, Hide My Email)
 
-Only if the user wants it and `uv` is installed:
+Built into the Rust server. They need the full Apple ID password in `icloud.password` (warn: it is
+the real account password, stored in the 600-mode config file, used against Apple's private
+icloud.com APIs) and one two-factor code. Only if the user explicitly wants these:
 
-```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/sidecar/icloud-web"
-claude mcp add --scope user apple-icloud-web -- uv run --project "${CLAUDE_PLUGIN_ROOT}/sidecar/icloud-web" apple-icloud-web-mcp
-```
-
-Then after reconnecting: `icloud_login` → approve 2FA on a device → `icloud_2fa` with the code.
-Warn that this uses Apple's private web APIs and the real account password.
+1. Save the password with `--stdin`: `{"icloud": {"apple_id": "…", "password": "…"}}`.
+2. Run `… scripts/apple-mcp icloud login`. If it reports `two_factor_required`, Apple pushed a
+   6-digit code to the user's devices: ask for it and run `… icloud 2fa <code>` right away (codes
+   expire). No prompt on the devices → `… icloud sms` sends it by SMS, then `icloud 2fa <code>`.
+   If Apple answers that updated iCloud terms must be accepted, the user signs in once at
+   https://www.icloud.com/ and accepts them, then `… icloud login` again (no 2FA this time).
+3. Prove it with `… icloud lists` (Reminders lists). The session is cached; later logins are silent.
 
 ## Reference: other setup commands
 

@@ -30,7 +30,7 @@ is configured, call `apple_status` first. To add or fix credentials use `apple_c
 | Search Ads campaigns & reports | `searchads_*` | `search_ads` |
 | Apple News Publisher channel/articles | `news_*` | `news` |
 | iCloud Calendar, Contacts, Mail | `icloud_calendars`, `icloud_events`, `icloud_event_*`, `icloud_contacts`, `icloud_contact_*`, `icloud_mail_*` | `icloud` (app-specific password) |
-| iCloud Drive, Photos, Find My, Reminders, Notes, Hide My Email | optional Python sidecar `apple-icloud-web` (see the `icloud` skill) | `icloud.password` |
+| iCloud Reminders, Notes, Drive, Photos, Find My, Hide My Email | `icloud_login`, `icloud_2fa`, `icloud_reminders*`, `icloud_notes*`, `icloud_drive_*`, `icloud_photos_*`, `icloud_findmy_*`, `icloud_hme_*` (see the `icloud` skill) | `icloud.password` (Apple ID password, 2FA once) |
 
 Every authenticated family has a generic `*_request` tool for endpoints without a dedicated
 tool; find endpoints with `apple_docs_index` (technologies: `appstoreconnectapi`,

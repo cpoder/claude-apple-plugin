@@ -44,7 +44,7 @@ pub const SERVICES: &[ServiceSpec] = &[
     ServiceSpec { section: "business_manager", label: "Apple Business Manager / School Manager API", required: &["client_id", "key_id", "private_key"], optional: &["scope"], tools: "abm_*" },
     ServiceSpec { section: "search_ads", label: "Apple Search Ads API", required: &["client_id", "team_id", "key_id", "private_key", "org_id"], optional: &[], tools: "searchads_*" },
     ServiceSpec { section: "news", label: "Apple News Publisher API", required: &["channel_id", "key_id", "key_secret"], optional: &[], tools: "news_*" },
-    ServiceSpec { section: "icloud", label: "iCloud Calendar/Contacts/Mail (app-specific password)", required: &["apple_id", "app_specific_password"], optional: &["mail_from", "mail_from_name"], tools: "icloud_*" },
+    ServiceSpec { section: "icloud", label: "iCloud Calendar/Contacts/Mail (app-specific password)", required: &["apple_id", "app_specific_password"], optional: &["password", "mail_from", "mail_from_name"], tools: "icloud_*" },
 ];
 
 pub const CONFIG_TEMPLATE: &str = r#"{
@@ -105,6 +105,7 @@ pub const CONFIG_TEMPLATE: &str = r#"{
   "icloud": {
     "_where": "account.apple.com > Sign-In and Security > App-Specific Passwords (needs 2FA). apple_id is the iCloud email.",
     "apple_id": "you@icloud.com", "app_specific_password": "xxxx-xxxx-xxxx-xxxx",
+    "password": "optional: the full Apple ID password, only for the iCloud web tools (Reminders, Notes, Drive, Photos, Find My, Hide My Email); one 2FA code at first login",
     "mail_from": "optional sender address (must be an iCloud address or alias), defaults to apple_id",
     "mail_from_name": "optional display name"
   }
