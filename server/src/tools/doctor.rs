@@ -24,6 +24,19 @@ impl ProbeResult {
     }
 }
 
+/// iCloud web services (Drive, Photos, Find My, Reminders, Notes, Hide My Email): readiness from the
+/// cached session only, never a login from the doctor (a fresh login triggers a 2FA push on the
+/// user's devices).
+fn web_readiness(cfg: &Config) -> String {
+    match (cfg.get_str("icloud", "apple_id"), cfg.get_str("icloud", "password")) {
+        (Some(id), Some(_)) => {
+            let s = crate::tools::icloud_web::cached_session(&id);
+            format!("web services: password set, cached session {} ({})", s.state, s.detail)
+        }
+        _ => "web services: not enabled (set icloud.password for Drive/Photos/Find My/Reminders/Notes/Hide My Email)".to_string(),
+    }
+}
+
 impl AppleServer {
     /// Probe one service. Returns a human-readable detail string on success, an error on failure.
     pub async fn probe_service(&self, section: &str) -> Result<String, ToolError> {
@@ -111,19 +124,7 @@ impl AppleServer {
                 })
                 .await
                 .map_err(|e| ToolError::new(e.to_string()))?;
-                // iCloud web services (Drive, Photos, Find My, Reminders, Notes, HME): report readiness only,
-                // never log in from the doctor (a fresh login triggers a 2FA push on the user's devices).
-                let web = if cfg.get_str("icloud", "password").is_some() {
-                    let dir = crate::tools::icloud_web::session_dir();
-                    let cached = std::fs::read_dir(&dir).map(|mut d| d.next().is_some()).unwrap_or(false);
-                    if cached {
-                        "web services: password set, cached session present (icloud_login reuses it)".to_string()
-                    } else {
-                        "web services: password set, no cached session yet (first icloud_login will ask for a 2FA code)".to_string()
-                    }
-                } else {
-                    "web services: not enabled (set icloud.password for Drive/Photos/Find My/Reminders/Notes)".to_string()
-                };
+                let web = web_readiness(&cfg);
                 match mail {
                     Ok(m) => Ok(format!("iCloud OK — CalDAV principal {principal}; {m}; {web}")),
                     Err(e) => Ok(format!("iCloud partially OK — CalDAV principal {principal}; mail FAILED: {e}; {web}")),
@@ -144,6 +145,13 @@ impl AppleServer {
                 }
             let missing = cfg.missing(spec);
             if !missing.is_empty() {
+                if spec.section == "icloud" && cfg.get_str("icloud", "apple_id").is_some() && cfg.get_str("icloud", "password").is_some() {
+                    // Only the web set is configured: nothing to call without logging in, so report the cache.
+                    let state = cfg.get_str("icloud", "apple_id").map(|id| crate::tools::icloud_web::cached_session(&id).state).unwrap_or("absent");
+                    let detail = format!("Calendar/Contacts/Mail not configured (missing: {}); {}", missing.join(", "), web_readiness(&cfg));
+                    results.push(ProbeResult { section: spec.section, label: spec.label, configured: true, ok: state == "active", detail, millis: 0 });
+                    continue;
+                }
                 results.push(ProbeResult { section: spec.section, label: spec.label, configured: false, ok: false, detail: format!("not configured (missing: {})", missing.join(", ")), millis: 0 });
                 continue;
             }

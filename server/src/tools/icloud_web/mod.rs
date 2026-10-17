@@ -17,7 +17,7 @@ pub mod reminders;
 pub mod srp;
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -156,6 +156,54 @@ pub(crate) fn session_dir() -> PathBuf {
     base.join("icloud-session")
 }
 
+/// Cache file of one Apple ID's web session inside `dir`.
+pub(crate) fn session_file(dir: &Path, apple_id: &str) -> PathBuf {
+    let safe: String = apple_id.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
+    dir.join(format!("{safe}.json"))
+}
+
+/// What the cached web session of an Apple ID looks like from disk alone: no network call, no
+/// login, no secret read back (`apple_status`, `check` and the doctor report it).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CachedSession {
+    /// `active`, `expired`, `awaiting_2fa` or `absent`.
+    pub state: &'static str,
+    /// What the next iCloud web tool call does about it.
+    pub detail: &'static str,
+    pub file: PathBuf,
+}
+
+pub(crate) fn cached_session(apple_id: &str) -> CachedSession {
+    cached_session_in(&session_dir(), apple_id)
+}
+
+/// Mirrors `WebSession::login`: a session token plus a live `X-APPLE-WEBAUTH-TOKEN` cookie is
+/// validated silently; without the cookie the trust token renews the session (normally with no
+/// new two-factor code); without a trust token Apple asks for a code again.
+pub(crate) fn cached_session_in(dir: &Path, apple_id: &str) -> CachedSession {
+    let file = session_file(dir, apple_id);
+    let persisted: Option<Persisted> = std::fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok());
+    let now = chrono::Utc::now().timestamp();
+    let (state, detail) = match persisted {
+        Some(p) if p.pending.active => ("awaiting_2fa", "Apple sent a two-factor code: call icloud_2fa with it (or icloud_login with sms=true to receive it by SMS)"),
+        Some(p) => {
+            let has = |k: &str| p.headers.get(k).is_some_and(|v| !v.is_empty());
+            let cookie_live = p.cookies.iter().any(|c| c.name == "X-APPLE-WEBAUTH-TOKEN" && c.expires.is_none_or(|e| e > now));
+            if has("session_token") && cookie_live {
+                ("active", "the iCloud web tools reuse it silently (and renew it with the trust token if Apple rejects it)")
+            } else if has("trust_token") {
+                ("expired", "the session cookie is gone; the next icloud_login renews it with the trust token, normally without a new two-factor code")
+            } else if has("session_token") || !p.cookies.is_empty() {
+                ("expired", "no trust token kept: the next icloud_login asks for a two-factor code")
+            } else {
+                ("absent", "never logged in: the first icloud_login asks for a two-factor code")
+            }
+        }
+        None => ("absent", "no cached session: the first icloud_login asks for a two-factor code"),
+    };
+    CachedSession { state, detail, file }
+}
+
 fn b64(b: &[u8]) -> String {
     BASE64_STANDARD.encode(b)
 }
@@ -169,8 +217,7 @@ impl WebSession {
         let dir = session_dir();
         std::fs::create_dir_all(&dir).map_err(|e| WebErr::Other(format!("cannot create {}: {e}", dir.display())))?;
         crate::setup::restrict(&dir, 0o700);
-        let safe: String = apple_id.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
-        let file = dir.join(format!("{safe}.json"));
+        let file = session_file(&dir, apple_id);
         let mut persisted: Persisted = std::fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
         if persisted.client_id.is_empty() {
             persisted.client_id = uuid::Uuid::new_v4().to_string().to_lowercase();
@@ -870,5 +917,59 @@ mod tests {
         assert_eq!(error_fields(&json!({"reason": "x", "serverErrorCode": "ZONE_NOT_FOUND"})), (json!("ZONE_NOT_FOUND"), "x".into()));
         assert_eq!(error_fields(&json!({"success": true})).1, "");
         assert_eq!(error_fields(&json!({"error": false})).1, "");
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    fn write(dir: &Path, apple_id: &str, p: &Persisted) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(session_file(dir, apple_id), serde_json::to_string(p).unwrap()).unwrap();
+    }
+
+    fn webauth_cookie(expires: Option<i64>) -> Cookie {
+        Cookie { name: "X-APPLE-WEBAUTH-TOKEN".into(), value: "v=2:t=x".into(), domain: "icloud.com".into(), host_only: false, path: "/".into(), secure: true, expires }
+    }
+
+    #[test]
+    fn cached_session_states() {
+        let dir = std::env::temp_dir().join(format!("apple-mcp-session-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let id = "someone@example.com";
+        assert_eq!(session_file(&dir, id), dir.join("someoneexamplecom.json"));
+        let s = cached_session_in(&dir, id);
+        assert_eq!((s.state, s.file.clone()), ("absent", dir.join("someoneexamplecom.json")));
+
+        let mut p = Persisted { client_id: "c".into(), ..Default::default() };
+        write(&dir, id, &p);
+        assert_eq!(cached_session_in(&dir, id).state, "absent", "client id only: never logged in");
+
+        p.headers.insert("session_token".into(), "tok".into());
+        p.cookies.push(webauth_cookie(None));
+        write(&dir, id, &p);
+        assert_eq!(cached_session_in(&dir, id).state, "active", "session cookie without expiry");
+
+        p.cookies[0].expires = Some(chrono::Utc::now().timestamp() + 3600);
+        write(&dir, id, &p);
+        assert_eq!(cached_session_in(&dir, id).state, "active");
+
+        p.cookies[0].expires = Some(chrono::Utc::now().timestamp() - 60);
+        write(&dir, id, &p);
+        let s = cached_session_in(&dir, id);
+        assert_eq!(s.state, "expired");
+        assert!(s.detail.contains("asks for a two-factor code"), "{}", s.detail);
+
+        p.headers.insert("trust_token".into(), "trust".into());
+        write(&dir, id, &p);
+        let s = cached_session_in(&dir, id);
+        assert_eq!(s.state, "expired");
+        assert!(s.detail.contains("trust token"), "{}", s.detail);
+
+        p.pending.active = true;
+        write(&dir, id, &p);
+        assert_eq!(cached_session_in(&dir, id).state, "awaiting_2fa");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

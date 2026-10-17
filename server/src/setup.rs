@@ -892,11 +892,20 @@ fn locale_storefront() -> String {
     "us".into()
 }
 
+/// Whether `auto` must write the config back: anything differs from what the file held when it
+/// started (assignments included: comparing with a snapshot taken after applying them silently
+/// dropped `setup auto --stdin` / `k=v` values that were the only change), or there is no file yet.
+fn config_dirty(on_disk: &Map<String, Value>, map: &Map<String, Value>, exists: bool) -> bool {
+    map != on_disk || !exists
+}
+
 /// Discover, probe, assign, write. The heart of `setup auto`.
 pub async fn auto(opts: &AutoOptions) -> anyhow::Result<Report> {
-    let mut map = read_config_map()?;
+    let on_disk = read_config_map()?;
+    let mut map = on_disk.clone();
     let mut report = Report { config_path: Config::default_path().display().to_string(), keys_dir: keys_dir().display().to_string(), ..Default::default() };
     report.changed = apply_assignments(&mut map, &opts.assignments)?;
+    // Snapshot after the assignments: the write step reports what discovery and probing changed on top of them.
     let before = map.clone();
 
     // Keys: discovered files + keys referenced by the config (inline or by path).
@@ -1480,14 +1489,14 @@ pub async fn auto(opts: &AutoOptions) -> anyhow::Result<Report> {
                 sr.needs.push(need(section, "app_specific_password", "Generate an app-specific password (xxxx-xxxx-xxxx-xxxx) and paste it here"));
             }
             if sr.needs.is_empty() {
-                sr.needs.push(need(section, "app_specific_password", &format!("iCloud rejected the credentials ({}). Check in order: iCloud Calendars and Contacts are turned on for this Apple ID (Settings > [your name] > iCloud on an iPhone or Mac, or visible on icloud.com); the app-specific password is typed with its dashes (xxxx-xxxx-xxxx-xxxx) and was generated after the last Apple ID password change (a password change revokes all of them); apple_id is the exact Apple ID e-mail (a Gmail or other address works, no @icloud.com alias needed)", sr.detail)));
+                sr.needs.push(need(section, "app_specific_password", &format!("iCloud rejected the credentials ({}). {}", sr.detail, crate::tools::icloud_dav::AUTH_401_CHECKLIST)));
             }
         }
         report.services.push(sr);
     }
 
     // ---- Write ---------------------------------------------------------------------------
-    if map != before || !Config::default_path().exists() {
+    if config_dirty(&on_disk, &map, Config::default_path().exists()) {
         let path = write_config_map(&map)?;
         for (k, v) in &map {
             if before.get(k) != Some(v) && !report.changed.contains(k) {
@@ -1887,6 +1896,20 @@ mod tests {
         apply_assignments(&mut map, &[("music.key_id".into(), "".into())]).unwrap();
         assert!(map["music"].get("key_id").is_none());
         assert!(apply_assignments(&mut map, &[("maps.private_key_path".into(), "/nonexistent/x.p8".into())]).is_err());
+    }
+
+    #[test]
+    fn auto_writes_when_an_assignment_is_the_only_change() {
+        let mut on_disk = Map::new();
+        on_disk.insert("icloud".into(), json!({"apple_id": "a@b.c"}));
+        let mut map = on_disk.clone();
+        assert!(!config_dirty(&on_disk, &map, true), "nothing changed and the file exists: no write");
+        assert!(config_dirty(&on_disk, &map, false), "no file yet: always write");
+        let changed = apply_assignments(&mut map, &[("icloud.app_specific_password".into(), "aaaa-bbbb-cccc-dddd".into())]).unwrap();
+        assert_eq!(changed, vec!["icloud.app_specific_password".to_string()]);
+        assert!(config_dirty(&on_disk, &map, true), "an assignment alone must be written");
+        let after_assignments = map.clone();
+        assert!(!config_dirty(&after_assignments, &map, true), "the 0.2.0 bug: a snapshot taken after the assignments hides them");
     }
 
     #[test]

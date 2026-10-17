@@ -10,10 +10,11 @@ Credentials in `icloud`: `apple_id` (the exact Apple ID e-mail; a Gmail or other
 no @icloud.com alias needed) + `app_specific_password` from account.apple.com → Sign-In and
 Security → App-Specific Passwords (2FA required; format `xxxx-xxxx-xxxx-xxxx`, typed with the
 dashes). The normal Apple ID password does not work for CalDAV/CardDAV/IMAP. If CalDAV/CardDAV
-answer 401 with a fresh password, check in order: iCloud Calendars and Contacts are turned on for
-this Apple ID (Settings → [name] → iCloud on an iPhone or Mac, or visible on icloud.com); the
-password was generated after the last Apple ID password change (a change revokes all of them);
-the e-mail is the Apple ID itself. Diagnose from a shell with
+answer 401 with a fresh password, check in order: the password is typed exactly as generated, with
+its dashes and no swapped or missing letters (the usual cause); it was generated after the last
+Apple ID password change (a change revokes all of them); the e-mail is the Apple ID itself; iCloud
+Calendars and Contacts are turned on for this Apple ID (Settings → [name] → iCloud on an iPhone or
+Mac, or visible on icloud.com). Diagnose from a shell with
 `curl -s -o /dev/null -w '%{http_code}' -u 'APPLE_ID:APP_PASSWORD' -X PROPFIND -H 'Depth: 0' https://caldav.icloud.com/`
 (207 = OK).
 
@@ -64,7 +65,8 @@ Login: any tool logs in silently from the cache. If it answers that 2FA is requi
 pushed a 6-digit code to the user's trusted devices: ask for it and call `icloud_2fa code`. No
 prompt on the devices → `icloud_login sms=true` sends it by SMS to the trusted phone. If Apple
 asks to accept updated iCloud terms, the user must sign in once at https://www.icloud.com/.
-`icloud_login force=true` discards the cached session. From a shell (MCP not connected):
+`apple_status` shows the cached session's state under `icloud.web.session` (`active`, `expired`,
+`awaiting_2fa`, `absent`) without touching the network. `icloud_login force=true` discards the cached session. From a shell (MCP not connected):
 `bash scripts/apple-mcp icloud login|sms|2fa <code>|lists|reminders <list>`.
 
 - Reminders (CloudKit zone `Reminders`): `icloud_reminders_lists`; `icloud_reminders list include_completed limit`

@@ -46,7 +46,7 @@ pub const SERVICES: &[ServiceSpec] = &[
     ServiceSpec { section: "business_manager", label: "Apple Business Manager / School Manager API", required: &["client_id", "key_id", "private_key"], optional: &["scope"], tools: "abm_*" },
     ServiceSpec { section: "search_ads", label: "Apple Search Ads API", required: &["client_id", "team_id", "key_id", "private_key", "org_id"], optional: &[], tools: "searchads_*" },
     ServiceSpec { section: "news", label: "Apple News Publisher API", required: &["channel_id", "key_id", "key_secret"], optional: &[], tools: "news_*" },
-    ServiceSpec { section: "icloud", label: "iCloud Calendar/Contacts/Mail (app-specific password)", required: &["apple_id", "app_specific_password"], optional: &["password", "mail_from", "mail_from_name"], tools: "icloud_*" },
+    ServiceSpec { section: "icloud", label: "iCloud: Calendar/Contacts/Mail (app-specific password) + web services (Apple ID password)", required: &["apple_id", "app_specific_password"], optional: &["password", "mail_from", "mail_from_name"], tools: "icloud_*" },
 ];
 
 pub const CONFIG_TEMPLATE: &str = r#"{
@@ -238,19 +238,64 @@ impl Config {
             .collect()
     }
 
+    /// iCloud has two independent credential sets: `apple_id` + `app_specific_password` for
+    /// CalDAV/CardDAV/IMAP, and `apple_id` + `password` for the icloud.com web services (whose
+    /// session is cached on disk after one two-factor code). Reports both, plus the cached
+    /// session's state, without touching the network.
+    pub fn icloud_status(&self) -> Value {
+        self.icloud_status_in(&crate::tools::icloud_web::session_dir())
+    }
+
+    pub(crate) fn icloud_status_in(&self, session_dir: &Path) -> Value {
+        let missing_of = |keys: &[&'static str]| -> Vec<&'static str> { keys.iter().filter(|k| self.get_str("icloud", k).is_none()).copied().collect() };
+        let dav_missing = missing_of(&["apple_id", "app_specific_password"]);
+        let web_missing = missing_of(&["apple_id", "password"]);
+        let mut web = serde_json::json!({
+            "service": "iCloud web: Reminders, Notes, Drive, Photos, Find My, Hide My Email (apple_id + password; one two-factor code at first login, then a cached session)",
+            "configured": web_missing.is_empty(),
+            "missing": web_missing,
+            "session": "absent",
+            "tools": "icloud_login, icloud_2fa, icloud_account, icloud_reminders*, icloud_reminder_*, icloud_notes*, icloud_note, icloud_drive_*, icloud_photos_*, icloud_findmy_*, icloud_hme_*",
+        });
+        if let Some(id) = self.get_str("icloud", "apple_id") {
+            let s = crate::tools::icloud_web::cached_session_in(session_dir, &id);
+            web["session"] = Value::String(s.state.into());
+            web["session_detail"] = Value::String(s.detail.into());
+            web["session_file"] = Value::String(s.file.display().to_string());
+        }
+        serde_json::json!({
+            "dav_imap": {
+                "service": "iCloud Calendar (CalDAV), Contacts (CardDAV), Mail (IMAP/SMTP) (apple_id + app_specific_password)",
+                "configured": dav_missing.is_empty(),
+                "missing": dav_missing,
+                "tools": "icloud_calendars, icloud_events, icloud_event_*, icloud_contacts, icloud_contact_*, icloud_mail_*",
+            },
+            "web": web,
+        })
+    }
+
     pub fn status_json(&self) -> Value {
         let services: Vec<Value> = SERVICES
             .iter()
             .map(|s| {
                 let missing = self.missing(s);
-                serde_json::json!({
+                let mut entry = serde_json::json!({
                     "section": s.section,
                     "service": s.label,
                     "configured": missing.is_empty(),
                     "missing": missing,
                     "optional": s.optional,
                     "tools": s.tools,
-                })
+                });
+                if s.section == "icloud" {
+                    let ic = self.icloud_status();
+                    let any = [&ic["dav_imap"], &ic["web"]].iter().any(|v| v["configured"].as_bool().unwrap_or(false));
+                    entry["configured"] = Value::Bool(any);
+                    entry["note"] = Value::String("two independent credential sets: `dav_imap` (apple_id + app_specific_password) and `web` (apple_id + password; `session` is the state of the cached icloud.com session). `configured` is true when either set is complete; `missing` lists the keys of the DAV/IMAP set only.".into());
+                    entry["dav_imap"] = ic["dav_imap"].clone();
+                    entry["web"] = ic["web"].clone();
+                }
+                entry
             })
             .collect();
         serde_json::json!({
@@ -272,6 +317,23 @@ impl Config {
             out.push_str(&format!("load error: {e}\n"));
         }
         for s in SERVICES {
+            if s.section == "icloud" {
+                let ic = self.icloud_status();
+                for (name, key, label) in [
+                    ("icloud (dav/imap)", "dav_imap", "iCloud Calendar/Contacts/Mail (apple_id + app_specific_password)"),
+                    ("icloud (web)", "web", "iCloud Reminders/Notes/Drive/Photos/Find My/Hide My Email (apple_id + password)"),
+                ] {
+                    let v = &ic[key];
+                    let missing: Vec<&str> = v["missing"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+                    if missing.is_empty() {
+                        let session = v["session"].as_str().map(|st| format!("; cached session {st}")).unwrap_or_default();
+                        out.push_str(&format!("  [ok]      {name:<22} {label}{session}\n"));
+                    } else {
+                        out.push_str(&format!("  [missing] {name:<22} {label} (needs: {})\n", missing.join(", ")));
+                    }
+                }
+                continue;
+            }
             let missing = self.missing(s);
             if missing.is_empty() {
                 out.push_str(&format!("  [ok]      {:<22} {}\n", s.section, s.label));
@@ -468,6 +530,57 @@ mod tests {
         assert_eq!(root["team_id"], "TEAM");
         assert_eq!(mask("abcdefgh"), "ab…gh (8 chars)");
         assert!(is_secret_key("app_specific_password"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn config_with(data: Value) -> Config {
+        Config { path: PathBuf::from("/nonexistent/config.json"), exists: true, load_error: None, mtime: None, data: data.as_object().cloned().unwrap_or_default() }
+    }
+
+    fn icloud_entry(cfg: &Config) -> Value {
+        cfg.status_json()["services"].as_array().unwrap().iter().find(|s| s["section"] == "icloud").cloned().unwrap()
+    }
+
+    #[test]
+    fn icloud_status_reports_both_credential_sets() {
+        let dir = std::env::temp_dir().join(format!("apple-mcp-status-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // Web set only (the common case when the user never generated an app-specific password):
+        // the entry must not read as "iCloud not configured".
+        let web_only = config_with(serde_json::json!({"icloud": {"apple_id": "status-test@example.invalid", "password": "pw"}}));
+        let ic = web_only.icloud_status_in(&dir);
+        assert_eq!(ic["dav_imap"]["configured"], false);
+        assert_eq!(ic["dav_imap"]["missing"], serde_json::json!(["app_specific_password"]));
+        assert_eq!(ic["web"]["configured"], true);
+        assert_eq!(ic["web"]["missing"], serde_json::json!([]));
+        assert_eq!(ic["web"]["session"], "absent");
+        assert_eq!(ic["web"]["session_file"], dir.join("statustestexampleinvalid.json").display().to_string());
+        let entry = icloud_entry(&web_only);
+        assert_eq!(entry["configured"], true, "either set complete counts as configured");
+        assert_eq!(entry["missing"], serde_json::json!(["app_specific_password"]));
+        assert!(entry["note"].as_str().unwrap().contains("dav_imap"));
+        assert_eq!(entry["web"]["configured"], true);
+        assert_eq!(entry["dav_imap"]["configured"], false);
+        let report = web_only.status_report();
+        assert!(report.contains("[missing] icloud (dav/imap)") && report.contains("(needs: app_specific_password)"), "{report}");
+        assert!(report.contains("[ok]      icloud (web)") && report.contains("cached session absent"), "{report}");
+        assert!(!report.contains("[missing] icloud  "), "the bare icloud line is replaced by the two sets: {report}");
+
+        let dav_only = config_with(serde_json::json!({"icloud": {"apple_id": "status-test@example.invalid", "app_specific_password": "aaaa-bbbb-cccc-dddd"}}));
+        let ic = dav_only.icloud_status_in(&dir);
+        assert_eq!(ic["dav_imap"]["configured"], true);
+        assert_eq!(ic["web"]["configured"], false);
+        assert_eq!(ic["web"]["missing"], serde_json::json!(["password"]));
+        let entry = icloud_entry(&dav_only);
+        assert_eq!((entry["configured"].clone(), entry["missing"].clone()), (serde_json::json!(true), serde_json::json!([])));
+
+        let none = config_with(serde_json::json!({}));
+        let ic = none.icloud_status_in(&dir);
+        assert_eq!(ic["dav_imap"]["missing"], serde_json::json!(["apple_id", "app_specific_password"]));
+        assert_eq!(ic["web"]["missing"], serde_json::json!(["apple_id", "password"]));
+        assert_eq!(ic["web"]["session"], "absent");
+        assert!(ic["web"].get("session_file").is_none(), "no apple_id: no file to point at");
+        assert_eq!(icloud_entry(&none)["configured"], false);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

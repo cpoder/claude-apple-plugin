@@ -86,6 +86,10 @@ impl AppleServer {
             "unknown_keys_written": unknown,
             "private_key_saved_to": saved_key,
         });
+        if section == "icloud" {
+            // `complete`/`still_missing` describe the DAV/IMAP set; the web set (password + cached session) is independent.
+            out["icloud"] = fresh.icloud_status();
+        }
         if p.verify.unwrap_or(true) && missing.is_empty() {
             match self.probe_service(&section).await {
                 Ok(d) => { out["verified"] = json!(true); out["verification"] = json!(d); }

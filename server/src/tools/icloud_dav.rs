@@ -13,6 +13,10 @@ use crate::util::parse_datetime;
 
 const SECTION: &str = "icloud";
 pub(crate) const CALDAV_ROOT: &str = "https://caldav.icloud.com/";
+
+/// Why iCloud answers 401 to CalDAV/CardDAV despite an app-specific password, most frequent cause
+/// first (in the field it was two swapped letters in the password; the other checks are cheap).
+pub(crate) const AUTH_401_CHECKLIST: &str = "Check in order: the app-specific password is typed exactly as Apple generated it, with its dashes (xxxx-xxxx-xxxx-xxxx) and no swapped or missing letters (the usual cause); it was generated after the last Apple ID password change (a password change revokes all of them); apple_id is the exact Apple ID e-mail (a Gmail or other address works, no @icloud.com alias needed); iCloud Calendars and Contacts are turned on for this Apple ID (Settings > [your name] > iCloud on an iPhone or Mac, or visible on icloud.com)";
 const CARDDAV_ROOT: &str = "https://contacts.icloud.com/";
 const NS_DAV: &str = "DAV:";
 const NS_CAL: &str = "urn:ietf:params:xml:ns:caldav";
@@ -439,7 +443,7 @@ impl AppleServer {
         if let Some(b) = body { req = req.body(b); }
         let resp = http::send(req).await?;
         if resp.status == 401 {
-            crate::bail!("iCloud rejected the credentials (HTTP 401). Use an app-specific password (account.apple.com > Sign-In and Security > App-Specific Passwords), not the Apple ID password. Check in order: iCloud Calendars and Contacts are turned on for this Apple ID (Settings > [your name] > iCloud on an iPhone or Mac, or visible on icloud.com); the app-specific password is typed with its dashes (xxxx-xxxx-xxxx-xxxx) and was generated after the last Apple ID password change (a password change revokes all of them); apple_id is the exact Apple ID e-mail (a Gmail or other address works, no @icloud.com alias needed).");
+            crate::bail!("iCloud rejected the credentials (HTTP 401). Use an app-specific password (account.apple.com > Sign-In and Security > App-Specific Passwords), not the Apple ID password. {AUTH_401_CHECKLIST}.");
         }
         Ok(resp)
     }
