@@ -4,14 +4,14 @@ description: Map of the Apple plugin — which MCP tool family to use for App St
 user-invocable: false
 ---
 
-# Apple services (plugin `apple`)
+# Apple services (plugin `apple-services`)
 
 The `apple` MCP server (Rust) exposes ~100 tools. Public tools need no credentials; the
 others read `~/.config/apple-mcp/config.json` (one section per service). When unsure what
 is configured, call `apple_status` first. To add or fix credentials use `apple_configure`
 (writes one section safely, saves a pasted `.p8`, verifies the service) and
 `apple_test_service` (read-only probe of every configured service with Apple's exact error);
-`apple_config_template` documents every key and where to get it; `/apple:setup` guides the user.
+`apple_config_template` documents every key and where to get it; `/apple-services:setup` guides the user.
 
 ## Pick the tool family
 

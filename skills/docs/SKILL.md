@@ -1,10 +1,10 @@
 ---
 name: docs
-description: Look up Apple developer documentation (frameworks, APIs, REST endpoints, Swift/Objective-C symbols, articles) and render it as Markdown. Use for questions about SwiftUI, UIKit, Foundation, App Store Connect API endpoints, WeatherKit, MusicKit, CloudKit, Xcode, visionOS... or when the user runs /apple:docs <query>.
+description: Look up Apple developer documentation (frameworks, APIs, REST endpoints, Swift/Objective-C symbols, articles) and render it as Markdown. Use for questions about SwiftUI, UIKit, Foundation, App Store Connect API endpoints, WeatherKit, MusicKit, CloudKit, Xcode, visionOS... or when the user runs /apple-services:docs <query>.
 argument-hint: "<technology> <query>"
 ---
 
-# /apple:docs — Apple developer documentation
+# /apple-services:docs — Apple developer documentation
 
 Query: `$ARGUMENTS`
 

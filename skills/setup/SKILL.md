@@ -6,7 +6,7 @@ argument-hint: "[service]"
 allowed-tools: Bash(bash *) Bash(ls *) Bash(cat *) Bash(mkdir *) Bash(chmod *) Bash(test *) Bash(APPLE_MCP_DATA_DIR=*) Read Write Edit
 ---
 
-# /apple:setup — connect Apple services
+# /apple-services:setup — connect Apple services
 
 Requested service (may be empty): `$ARGUMENTS`
 

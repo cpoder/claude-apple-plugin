@@ -171,7 +171,7 @@ impl Config {
     pub fn require(&self, section: &str, key: &str) -> Result<String, ToolError> {
         self.get_str(section, key).ok_or_else(|| {
             ToolError::new(format!(
-                "Missing `{section}.{key}` in {} (or env {}). Run /apple:setup, or call apple_config_template for the expected layout.",
+                "Missing `{section}.{key}` in {} (or env {}). Run /apple-services:setup, or call apple_config_template for the expected layout.",
                 self.path.display(),
                 Self::env_name(section, key)
             ))

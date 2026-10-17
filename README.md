@@ -28,18 +28,18 @@ web session.
 | iCloud web (Apple ID password + 2FA once) | `icloud_login`, `icloud_2fa`, `icloud_account`, `icloud_reminders*`, `icloud_reminder_*`, `icloud_notes*`, `icloud_note`, `icloud_drive_*`, `icloud_photos_*`, `icloud_findmy_*`, `icloud_hme_*` | Reminders, Notes, iCloud Drive, Photos, Find My, Hide My Email through the private icloud.com APIs (SRP login, trusted session cached) |
 
 Every authenticated family also has a generic `*_request` tool for endpoints without a dedicated
-tool. Skills: `/apple:setup`, `/apple:status`, `/apple:docs <query>`, plus reference skills Claude
+tool. Skills: `/apple-services:setup`, `/apple-services:status`, `/apple-services:docs <query>`, plus reference skills Claude
 loads on demand (`app-store-connect`, `app-store-server`, `apple-music`, `weatherkit`,
 `apple-maps`, `cloudkit`, `apns`, `sign-in-with-apple`, `apple-business-manager`,
-`apple-search-ads`, `apple-news`, `icloud`). Agent: `apple:apple-expert`.
+`apple-search-ads`, `apple-news`, `icloud`). Agent: `apple-services:apple-expert`.
 
 ## Quick start
 
 1. Install the plugin (see below). The first connection downloads the server binary.
-2. In Claude Code run `/apple:setup`, or in a terminal `bash scripts/apple-mcp setup`. It finds the
+2. In Claude Code run `/apple-services:setup`, or in a terminal `bash scripts/apple-mcp setup`. It finds the
    keys you downloaded, probes them against every Apple API, derives your Team ID and bundle ids,
    writes the config and prints the exact link to open for anything still missing.
-3. Check with `/apple:status`. The public tools (App Store search, charts, Apple system status,
+3. Check with `/apple-services:status`. The public tools (App Store search, charts, Apple system status,
    developer documentation) work without any credentials.
 
 ## Requirements
@@ -56,14 +56,14 @@ From GitHub:
 
 ```bash
 claude plugin marketplace add cpoder/claude-apple-plugin
-claude plugin install apple@cpo-plugins
+claude plugin install apple-services@cpo-plugins
 ```
 
 From a local checkout (loads in place, so edits are picked up on restart):
 
 ```bash
 claude plugin marketplace add /path/to/claude-apple-plugin
-claude plugin install apple@cpo-plugins
+claude plugin install apple-services@cpo-plugins
 ```
 
 For development only: `claude --plugin-dir /path/to/claude-apple-plugin`.
@@ -86,7 +86,7 @@ bash scripts/apple-mcp build      # build from source instead, and keep rebuildi
 
 ## Configure
 
-Run `/apple:setup` inside Claude Code. It drives the automated setup built into the server:
+Run `/apple-services:setup` inside Claude Code. It drives the automated setup built into the server:
 
 ```bash
 bash scripts/apple-mcp setup            # interactive wizard in a terminal
@@ -118,7 +118,7 @@ use. Environment variables override the file (`APPLE_MCP_<SECTION>_<KEY>`, e.g.
 `APPLE_MCP_APP_STORE_CONNECT_KEY_ID`; `APPLE_TEAM_ID`; `APPLE_MCP_CONFIG` to point at another
 file). The server reloads the file whenever it changes on disk. Check with
 `bash scripts/apple-mcp check` (what is configured), `bash scripts/apple-mcp doctor` (one
-read-only call per configured service), `apple_test_service` from Claude, or `/apple:status`.
+read-only call per configured service), `apple_test_service` from Claude, or `/apple-services:status`.
 
 | Section | Credentials | Where |
 | :- | :- | :- |
@@ -146,7 +146,7 @@ server/                        Rust crate `apple-mcp` (rmcp 3, reqwest, p256 ES2
   src/tools/icloud_web/        icloud.com web session (SRP + 2FA, cookies) and Reminders/Notes/Drive/Photos/Find My/Hide My Email
   src/tools/doctor.rs          one read-only probe per service (apple_test_service, `apple-mcp doctor`)
   src/setup.rs                 `apple-mcp setup`: credential discovery, probing, config writing
-skills/*/SKILL.md              /apple:setup, /apple:status, /apple:docs + API reference skills
+skills/*/SKILL.md              /apple-services:setup, /apple-services:status, /apple-services:docs + API reference skills
 agents/apple-expert.md         subagent for multi-step Apple tasks
 config.example.json            every config section with where to get each credential
 ```

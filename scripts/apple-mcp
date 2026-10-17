@@ -119,7 +119,7 @@ download_release() {
     rm -rf "$tmp"
     return 1
   fi
-  tar -xzf "$tmp/$asset" -C "$tmp"
+  tar --no-same-owner -xzf "$tmp/$asset" -C "$tmp"
   mkdir -p "$BIN_DIR"
   mv "$tmp/apple-mcp" "$BIN.tmp" && chmod 755 "$BIN.tmp" && mv "$BIN.tmp" "$BIN"
   echo "$RELEASE_STAMP" > "$STAMP_FILE"

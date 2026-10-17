@@ -708,7 +708,7 @@ impl AppleServer {
         let cfg = self.cfg();
         let apple_id = cfg.require(SECTION, "apple_id")?;
         let password = cfg.get_str(SECTION, "password").ok_or_else(|| {
-            ToolError::new("iCloud web services need `icloud.password` (the full Apple ID password, not an app-specific password) in the config — run /apple:setup, or `apple-mcp setup set --stdin` with {\"icloud\": {\"password\": \"…\"}}")
+            ToolError::new("iCloud web services need `icloud.password` (the full Apple ID password, not an app-specific password) in the config — run /apple-services:setup, or `apple-mcp setup set --stdin` with {\"icloud\": {\"password\": \"…\"}}")
         })?;
         let mut guard = slot().lock().await;
         if let Some(s) = guard.as_ref()
