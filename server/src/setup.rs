@@ -52,7 +52,7 @@ pub const PORTALS: &[Portal] = &[
     Portal { id: "abm", url: "https://business.apple.com/", what: "Apple Business Manager: Preferences > API > Add: copy the Client ID (BUSINESSAPI.…) and Key ID, download the .pem (school.apple.com for Apple School Manager)" },
     Portal { id: "searchads", url: "https://app.searchads.apple.com/", what: "Apple Search Ads: Account Settings > API > Create API Client, paste the public key printed by `setup pubkey search_ads`, copy client id, team id and key id" },
     Portal { id: "news", url: "https://www.icloud.com/newspublisher/", what: "News Publisher: channel > API keys: channel ID, key ID, key secret" },
-    Portal { id: "icloud-passwords", url: "https://account.apple.com/account/manage/section/security", what: "App-Specific Passwords > Generate (2FA required); apple_id is the iCloud e-mail" },
+    Portal { id: "icloud-passwords", url: "https://account.apple.com/account/manage/section/security", what: "App-Specific Passwords > Generate (2FA required); apple_id is the Apple ID e-mail (any address)" },
     Portal { id: "vendor", url: "https://appstoreconnect.apple.com/itc/payments_and_financial_reports", what: "Vendor number (top of Payments and Financial Reports), only for sales/finance reports" },
 ];
 
@@ -1480,7 +1480,7 @@ pub async fn auto(opts: &AutoOptions) -> anyhow::Result<Report> {
                 sr.needs.push(need(section, "app_specific_password", "Generate an app-specific password (xxxx-xxxx-xxxx-xxxx) and paste it here"));
             }
             if sr.needs.is_empty() {
-                sr.needs.push(need(section, "app_specific_password", &format!("iCloud rejected the credentials ({}). Generate a new app-specific password", sr.detail)));
+                sr.needs.push(need(section, "app_specific_password", &format!("iCloud rejected the credentials ({}). Check in order: iCloud Calendars and Contacts are turned on for this Apple ID (Settings > [your name] > iCloud on an iPhone or Mac, or visible on icloud.com); the app-specific password is typed with its dashes (xxxx-xxxx-xxxx-xxxx) and was generated after the last Apple ID password change (a password change revokes all of them); apple_id is the exact Apple ID e-mail (a Gmail or other address works, no @icloud.com alias needed)", sr.detail)));
             }
         }
         report.services.push(sr);

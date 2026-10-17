@@ -10,7 +10,7 @@ allowed-tools: Bash(bash *) Bash(APPLE_MCP_DATA_DIR=*)
 1. Call `apple_status` (MCP), then `apple_test_service` to prove each configured service with
    one read-only call. If the tools are unavailable, the server is not connected: run
    `APPLE_MCP_DATA_DIR="${CLAUDE_PLUGIN_DATA}" bash "${CLAUDE_PLUGIN_ROOT}/scripts/apple-mcp" doctor` (same checks from the shell) and suggest
-   `/mcp` → reconnect, or `/apple-services:setup` for anything missing or failing.
+   `/mcp` → reconnect `plugin:apple-services:apple`, or `/apple-services:setup` for anything missing or failing.
 2. Call `apple_system_status` with scope `developer` and scope `consumer` (or only the scope in
    `$ARGUMENTS`).
 3. Summarize in a short table: configured services (verified / failing with Apple's error, and

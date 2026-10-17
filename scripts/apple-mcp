@@ -35,6 +35,18 @@ VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$SERVER_DIR/Cargo.toml" |
 
 log() { printf 'apple-mcp: %s\n' "$*" >&2; }
 
+# One-time migration from the plugin's former name (`apple`): Claude Code gives the renamed
+# plugin a new data directory, so reuse the cached iCloud session from the old one.
+migrate_old_data() {
+  local base old
+  base="$(basename "$DATA")"
+  case "$base" in apple-services-*) old="$(dirname "$DATA")/apple-${base#apple-services-}" ;; *) return 0 ;; esac
+  if [ ! -e "$DATA/icloud-session" ] && [ -d "$old/icloud-session" ]; then
+    mkdir -p "$DATA" && cp -a "$old/icloud-session" "$DATA/" && log "reused the iCloud session from $old"
+  fi
+}
+migrate_old_data
+
 sha256() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi
 }

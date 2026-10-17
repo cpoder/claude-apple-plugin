@@ -1,6 +1,6 @@
 [package]
 name = "apple-mcp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "MCP server exposing Apple online services (App Store Connect, App Store Server, Apple Music, WeatherKit, Maps, CloudKit, APNs, Sign in with Apple, Business Manager, Search Ads, News, iCloud CalDAV/CardDAV/Mail, public Apple APIs)"
 license = "MIT"

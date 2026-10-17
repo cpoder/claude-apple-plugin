@@ -6,9 +6,16 @@ user-invocable: false
 
 # iCloud (tools `icloud_*`)
 
-Credentials in `icloud`: `apple_id` (the iCloud e-mail) + `app_specific_password` from
-account.apple.com → Sign-In and Security → App-Specific Passwords (2FA required; format
-`xxxx-xxxx-xxxx-xxxx`). The normal Apple ID password does not work for CalDAV/CardDAV/IMAP.
+Credentials in `icloud`: `apple_id` (the exact Apple ID e-mail; a Gmail or other address works,
+no @icloud.com alias needed) + `app_specific_password` from account.apple.com → Sign-In and
+Security → App-Specific Passwords (2FA required; format `xxxx-xxxx-xxxx-xxxx`, typed with the
+dashes). The normal Apple ID password does not work for CalDAV/CardDAV/IMAP. If CalDAV/CardDAV
+answer 401 with a fresh password, check in order: iCloud Calendars and Contacts are turned on for
+this Apple ID (Settings → [name] → iCloud on an iPhone or Mac, or visible on icloud.com); the
+password was generated after the last Apple ID password change (a change revokes all of them);
+the e-mail is the Apple ID itself. Diagnose from a shell with
+`curl -s -o /dev/null -w '%{http_code}' -u 'APPLE_ID:APP_PASSWORD' -X PROPFIND -H 'Depth: 0' https://caldav.icloud.com/`
+(207 = OK).
 
 ## Calendar (CalDAV, `caldav.icloud.com`)
 

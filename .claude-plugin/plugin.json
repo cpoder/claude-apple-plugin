@@ -1,7 +1,7 @@
 {
   "name": "apple-services",
   "displayName": "Apple Services",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Apple online services for Claude Code: App Store Connect (apps, builds, TestFlight, reviews, reports, Xcode Cloud, Notary), App Store Server API (in-app purchases), Apple Music, WeatherKit, Apple Maps, CloudKit, APNs, Sign in with Apple, Business/School Manager, Search Ads, Apple News, iCloud (Calendar, Contacts, Mail, Reminders, Notes, Drive, Photos, Find My, Hide My Email), plus public iTunes Search, charts, system status and developer documentation. Rust MCP server (rmcp).",
   "author": {
     "name": "Cyril Poder"

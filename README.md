@@ -68,6 +68,14 @@ claude plugin install apple-services@cpo-plugins
 
 For development only: `claude --plugin-dir /path/to/claude-apple-plugin`.
 
+The plugin is `apple-services`; its MCP server is registered as `apple`, so `/mcp` lists it as
+`plugin:apple-services:apple` and the skills are `/apple-services:<name>`. If you installed it
+while it was still named `apple`, the marketplace's `renames` entry migrates the install on
+`claude plugin marketplace update cpo-plugins`; then run `claude plugin install
+apple-services@cpo-plugins` once, because `claude plugin list` keeps the old entry until you do.
+The launcher copies the cached iCloud session from the old data directory; credentials in
+`~/.config/apple-mcp/` are untouched.
+
 ### How the server binary gets there
 
 `scripts/apple-mcp` (started by Claude Code through `.mcp.json`) looks for a binary in the plugin

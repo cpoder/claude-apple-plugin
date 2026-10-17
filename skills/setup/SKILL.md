@@ -88,10 +88,10 @@ Never echo a secret or a private key back; refer to key files by name.
 
 ## 4. Final check
 
-- If the `apple` MCP server is connected, call `apple_test_service` (no reconnect needed: the
+- If the plugin's MCP server (`apple`, listed as `plugin:apple-services:apple` in `/mcp`) is connected, call `apple_test_service` (no reconnect needed: the
   server reloads the config file when it changes) and report its table.
 - If it is not connected (first install: the launcher built in the background and refused the
-  first connection), tell the user to run `/mcp` and reconnect `apple`, or restart Claude Code.
+  first connection), tell the user to run `/mcp` and reconnect `plugin:apple-services:apple`, or restart Claude Code.
   `… scripts/apple-mcp doctor` gives the same verification from the shell meanwhile.
 - WeatherKit can take ~30 minutes to activate after enabling it on the key / Services ID: a 401
   right after creation is expected; say so.

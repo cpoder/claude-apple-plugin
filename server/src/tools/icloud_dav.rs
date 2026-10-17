@@ -439,7 +439,7 @@ impl AppleServer {
         if let Some(b) = body { req = req.body(b); }
         let resp = http::send(req).await?;
         if resp.status == 401 {
-            crate::bail!("iCloud rejected the credentials (HTTP 401). Use the iCloud email as icloud.apple_id and an app-specific password (account.apple.com > Sign-In and Security > App-Specific Passwords), not the Apple ID password.");
+            crate::bail!("iCloud rejected the credentials (HTTP 401). Use an app-specific password (account.apple.com > Sign-In and Security > App-Specific Passwords), not the Apple ID password. Check in order: iCloud Calendars and Contacts are turned on for this Apple ID (Settings > [your name] > iCloud on an iPhone or Mac, or visible on icloud.com); the app-specific password is typed with its dashes (xxxx-xxxx-xxxx-xxxx) and was generated after the last Apple ID password change (a password change revokes all of them); apple_id is the exact Apple ID e-mail (a Gmail or other address works, no @icloud.com alias needed).");
         }
         Ok(resp)
     }

@@ -14,7 +14,7 @@
       "name": "apple-services",
       "source": "./",
       "description": "Apple online services (App Store Connect, App Store Server, Apple Music, WeatherKit, Maps, CloudKit, APNs, Sign in with Apple, Business Manager, Search Ads, News, iCloud) as MCP tools — Rust server.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Cyril Poder"
       },
